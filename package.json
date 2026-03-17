@@ -1,0 +1,189 @@
+{
+  "name": "celebi",
+  "displayName": "Celebi",
+  "publisher": "mzhao",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "*"
+  ],
+  "main": "./out/extension.js",
+  "scripts": {
+    "compile": "tsc -p ."
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.1.6",
+    "tslib": "^2.6.2"
+  },
+  "dependencies": {},
+  "contributes": {
+    "configuration": {
+      "title": "Celebi",
+      "properties": {
+        "celebi.pythonPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to Python interpreter. If empty, auto-detects from virtualenv or uses 'python'"
+        },
+        "celebi.virtualenvPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to Python virtualenv directory (e.g., /path/to/.venv). Auto-detected if empty"
+        },
+        "celebi.packagePath": {
+          "type": "string",
+          "default": "",
+          "description": "Optional: Path to CelebiChrono package (if not in Python path)"
+        },
+        "celebi.projectPath": {
+          "type": "string",
+          "default": "",
+          "description": "Optional: Default Celebi project path"
+        }
+      }
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "celebiViewContainer",
+          "title": "Celebi",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "celebiViewContainer": [
+        {
+          "id": "celebiTreeView",
+          "name": "Celebi",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "celebi.runPythonPackage",
+        "title": "Run Celebi Python Command",
+        "icon": "$(play)"
+      },
+      {
+        "command": "celebi.runInTerminal",
+        "title": "Run Celebi Command in Terminal"
+      },
+      {
+        "command": "celebi.showOutput",
+        "title": "Show Celebi Output"
+      },
+      {
+        "command": "celebi.refreshTree",
+        "title": "Refresh Celebi Tree",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "celebi.refreshDite",
+        "title": "Refresh DITE Status",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "celebi.openObject",
+        "title": "Open Celebi Object"
+      },
+      {
+        "command": "celebi.submit",
+        "title": "Submit Task",
+        "icon": "$(run)"
+      },
+      {
+        "command": "celebi.impress",
+        "title": "Impress Object"
+      },
+      {
+        "command": "celebi.switchProject",
+        "title": "Switch Project"
+      },
+      {
+        "command": "celebi.execute",
+        "title": "Execute Shell Command"
+      },
+      {
+        "command": "celebi.showTrace",
+        "title": "Show Trace Visualization",
+        "icon": "$(graph)"
+      },
+      {
+        "command": "celebi.gitStatus",
+        "title": "Git Status",
+        "icon": "$(git-branch)"
+      },
+      {
+        "command": "celebi.gitHistory",
+        "title": "Git History",
+        "icon": "$(history)"
+      },
+      {
+        "command": "celebi.viewResults",
+        "title": "View Results",
+        "icon": "$(output)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "celebi.refreshTree",
+          "when": "view == celebiTreeView",
+          "group": "navigation"
+        },
+        {
+          "command": "celebi.showTrace",
+          "when": "view == celebiTreeView",
+          "group": "navigation"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "celebi.refreshDite",
+          "when": "false"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "celebi.runPythonPackage",
+          "when": "view == celebiTreeView && viewItem == task",
+          "group": "inline"
+        },
+        {
+          "command": "celebi.submit",
+          "when": "view == celebiTreeView",
+          "group": "1_action@1"
+        },
+        {
+          "command": "celebi.impress",
+          "when": "view == celebiTreeView && viewItem == algorithm",
+          "group": "1_action@2"
+        },
+        {
+          "command": "celebi.showTrace",
+          "when": "view == celebiTreeView",
+          "group": "2_visualization@1"
+        },
+        {
+          "command": "celebi.gitStatus",
+          "when": "view == celebiTreeView",
+          "group": "3_git@1"
+        },
+        {
+          "command": "celebi.gitHistory",
+          "when": "view == celebiTreeView",
+          "group": "3_git@2"
+        }
+      ]
+    }
+  }
+}

@@ -3,6 +3,7 @@
   "displayName": "Celebi",
   "publisher": "mzhao",
   "version": "0.0.1",
+  "icon": "media/icon.png",
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -54,7 +55,7 @@
         {
           "id": "celebiViewContainer",
           "title": "Celebi",
-          "icon": "media/icon.svg"
+          "icon": "media/icon.png"
         }
       ]
     },
@@ -63,7 +64,7 @@
         {
           "id": "celebiTreeView",
           "name": "Celebi",
-          "icon": "media/icon.svg"
+          "icon": "media/icon.png"
         }
       ]
     },
@@ -131,6 +132,31 @@
         "command": "celebi.viewResults",
         "title": "View Results",
         "icon": "$(output)"
+      },
+      {
+        "command": "celebi.showLs",
+        "title": "List Directory Contents (LS)",
+        "icon": "$(list-unordered)"
+      },
+      {
+        "command": "celebi.createTask",
+        "title": "Create New Task",
+        "icon": "$(play-circle)"
+      },
+      {
+        "command": "celebi.createAlgorithm",
+        "title": "Create New Algorithm",
+        "icon": "$(symbol-method)"
+      },
+      {
+        "command": "celebi.createDirectory",
+        "title": "Create New Directory",
+        "icon": "$(new-folder)"
+      },
+      {
+        "command": "celebi.removeObject",
+        "title": "Remove Object",
+        "icon": "$(trash)"
       }
     ],
     "menus": {
@@ -150,6 +176,22 @@
         {
           "command": "celebi.refreshDite",
           "when": "false"
+        },
+        {
+          "command": "celebi.createTask",
+          "when": "false"
+        },
+        {
+          "command": "celebi.createAlgorithm",
+          "when": "false"
+        },
+        {
+          "command": "celebi.createDirectory",
+          "when": "false"
+        },
+        {
+          "command": "celebi.removeObject",
+          "when": "false"
         }
       ],
       "view/item/context": [
@@ -157,6 +199,26 @@
           "command": "celebi.runPythonPackage",
           "when": "view == celebiTreeView && viewItem == task",
           "group": "inline"
+        },
+        {
+          "command": "celebi.createTask",
+          "when": "view == celebiTreeView && (viewItem == project || viewItem == directory)",
+          "group": "inline@1"
+        },
+        {
+          "command": "celebi.createAlgorithm",
+          "when": "view == celebiTreeView && (viewItem == project || viewItem == directory)",
+          "group": "inline@2"
+        },
+        {
+          "command": "celebi.createDirectory",
+          "when": "view == celebiTreeView && (viewItem == project || viewItem == directory)",
+          "group": "inline@3"
+        },
+        {
+          "command": "celebi.removeObject",
+          "when": "view == celebiTreeView && (viewItem == project || viewItem == directory || viewItem == task || viewItem == algorithm || viewItem == data)",
+          "group": "inline@9"
         },
         {
           "command": "celebi.submit",

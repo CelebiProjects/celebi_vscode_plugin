@@ -30,7 +30,7 @@ export class CelebiTreeProvider implements vscode.TreeDataProvider<CelebiTreeIte
 
         // If expanding an object (task/algorithm/data), show available actions
         if (element.objectType === 'task' || element.objectType === 'algorithm' || element.objectType === 'data') {
-            return this.getObjectActions(element);
+            return await this.getObjectActions(element);
         }
 
         return [];
@@ -114,6 +114,19 @@ export class CelebiTreeProvider implements vscode.TreeDataProvider<CelebiTreeIte
                 }
             );
             treeItem.iconPath = new vscode.ThemeIcon('list-tree');
+
+            const lsItem = new CelebiTreeItem(
+                'List (LS)',
+                'unknown',
+                '',
+                vscode.TreeItemCollapsibleState.None,
+                {
+                    title: 'LS',
+                    command: 'celebi.showLs',
+                    tooltip: 'Show directory listing (ls)'
+                }
+            );
+            lsItem.iconPath = new vscode.ThemeIcon('list-unordered');
 
             const jobsItem = new CelebiTreeItem(
                 'Jobs',
@@ -238,6 +251,7 @@ export class CelebiTreeProvider implements vscode.TreeDataProvider<CelebiTreeIte
                 separatorItem,
                 statusItem,
                 treeItem,
+                lsItem,
                 jobsItem,
                 submitItem,
                 impressItem,
@@ -262,13 +276,21 @@ export class CelebiTreeProvider implements vscode.TreeDataProvider<CelebiTreeIte
 
     private async getSubObjects(parentPath: string): Promise<CelebiTreeItem[]> {
         try {
-            // Get the object name from the path
-            const objectName = parentPath.split('/').pop() || parentPath;
+            // Get the project path to calculate relative path
+            const projectPath = await execPython('shell.MANAGER.current_object().path');
 
-            // For root project, use '.' which represents the current project
-            // For subdirectories, use the directory name
-            const isRootProject = objectName === (await execPython('shell.MANAGER.get_current_project()'));
-            const subObjectExpr = isRootProject ? '.' : objectName;
+            // Calculate relative path from project root
+            let subObjectExpr: string;
+            if (parentPath === projectPath) {
+                // Root project
+                subObjectExpr = '.';
+            } else if (parentPath.startsWith(projectPath + '/')) {
+                // Subdirectory - use relative path from project root
+                subObjectExpr = parentPath.substring(projectPath.length + 1);
+            } else {
+                // Fallback to just the name
+                subObjectExpr = parentPath.split('/').pop() || parentPath;
+            }
 
             // Parse the sub-objects from the Python API
             // Get sub_objects of the specific object that was clicked, not current_object
@@ -353,9 +375,18 @@ export class CelebiTreeProvider implements vscode.TreeDataProvider<CelebiTreeIte
         }
     }
 
-    private getObjectActions(object: CelebiTreeItem): CelebiTreeItem[] {
+    private async getObjectActions(object: CelebiTreeItem): Promise<CelebiTreeItem[]> {
         const actions: CelebiTreeItem[] = [];
-        const objectName = object.label;
+        // Calculate relative path from project root for nested objects
+        const projectPath = await execPython('shell.MANAGER.current_object().path');
+        let objectName: string;
+        if (object.objectPath === projectPath) {
+            objectName = '.';
+        } else if (object.objectPath.startsWith(projectPath + '/')) {
+            objectName = object.objectPath.substring(projectPath.length + 1);
+        } else {
+            objectName = object.label;
+        }
 
         // Common actions for all object types
         actions.push(
@@ -369,6 +400,18 @@ export class CelebiTreeProvider implements vscode.TreeDataProvider<CelebiTreeIte
                     command: 'celebi.runPythonPackage',
                     arguments: [`shell.MANAGER.sub_object('${objectName}').status()`],
                     tooltip: `Show status of ${objectName}`
+                }
+            ),
+            new CelebiTreeItem(
+                'List (LS)',
+                'action',
+                '',
+                vscode.TreeItemCollapsibleState.None,
+                {
+                    title: 'List',
+                    command: 'celebi.showLs',
+                    arguments: [object],
+                    tooltip: `List contents of ${objectName}`
                 }
             ),
             new CelebiTreeItem(
@@ -526,6 +569,9 @@ export class CelebiTreeProvider implements vscode.TreeDataProvider<CelebiTreeIte
             switch (action.label) {
                 case 'Status':
                     action.iconPath = new vscode.ThemeIcon('pulse');
+                    break;
+                case 'List (LS)':
+                    action.iconPath = new vscode.ThemeIcon('list-unordered');
                     break;
                 case 'Changes':
                     action.iconPath = new vscode.ThemeIcon('diff');

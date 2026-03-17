@@ -3,6 +3,7 @@ import { execPython } from './pythonRunner';
 
 export class CelebiWebviewProvider {
     private panel: vscode.WebviewPanel | undefined;
+    private lsPanel: vscode.WebviewPanel | undefined;
     private browserPanel: vscode.WebviewPanel | undefined;
 
     async showTraceView(objectName?: string) {
@@ -22,57 +23,53 @@ export class CelebiWebviewProvider {
         }
 
         try {
-            // Get dependency DAG data
-            const dagData = await this.getDagData(objectName);
-            this.panel.webview.html = this.getTraceHtml(dagData);
+            // Get tree data
+            const treeData = await this.getTreeData(objectName);
+            this.panel.webview.html = this.getTraceHtml(treeData);
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
             this.panel.webview.html = this.getErrorHtml(message);
         }
     }
 
-    private async getDagData(objectName?: string): Promise<{ nodes: string[], edges: any[] }> {
-        const objExpr = objectName ? `shell.MANAGER.sub_object('${objectName}')` : 'shell.MANAGER.current_object()';
-        const result = await execPython(`
-            dag = ${objExpr}.build_dependency_dag()
-            nodes = list(dag.nodes())
-            edges = [(str(u), str(v), dag.edges[u, v]) for u, v in dag.edges()]
-            (nodes, edges)
-        `);
-
-        // Parse the result
-        // Expected format: ([GenTask, FitTask, Gen, Fit], [(GenTask, FitTask, {...}), ...])
-        return this.parseDagResult(result);
+    private async getTreeData(objectName?: string): Promise<string> {
+        const result = await execPython(`shell.tree()`);
+        return result;
     }
 
-    private parseDagResult(result: string): { nodes: string[], edges: any[] } {
-        try {
-            // Simple parsing - extract nodes and edges from Python repr
-            const nodes: string[] = [];
-            const edges: any[] = [];
+    async showLsView(title: string, lsData: string) {
+        if (this.lsPanel) {
+            this.lsPanel.reveal();
+        } else {
+            this.lsPanel = vscode.window.createWebviewPanel(
+                'celebiLs',
+                'Celebi LS',
+                vscode.ViewColumn.One,
+                { enableScripts: true }
+            );
 
-            // Extract nodes between first [ and ]
-            const nodesMatch = result.match(/\[([^\]]+)\]/);
-            if (nodesMatch) {
-                const nodeList = nodesMatch[1].split(',').map(s => s.trim());
-                nodes.push(...nodeList);
-            }
-
-            return { nodes, edges };
-        } catch (e) {
-            return { nodes: [], edges: [] };
+            this.lsPanel.onDidDispose(() => {
+                this.lsPanel = undefined;
+            });
         }
+
+        this.lsPanel.title = `📁 ${title}`;
+        this.lsPanel.webview.html = this.getLsHtml(title, lsData);
     }
 
-    private getTraceHtml(dagData: { nodes: string[], edges: any[] }): string {
-        const nodesJson = JSON.stringify(dagData.nodes);
-        const edgesJson = JSON.stringify(dagData.edges);
+    private getLsHtml(title: string, lsData: string): string {
+        // Escape HTML special characters
+        const escapedLs = lsData
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
 
         return `<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Celebi Trace</title>
+    <title>Celebi LS - ${title}</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -85,80 +82,81 @@ export class CelebiWebviewProvider {
             margin-bottom: 20px;
             color: var(--vscode-titleBar-activeForeground);
         }
-        .graph-container {
+        .ls-container {
             border: 1px solid var(--vscode-panel-border);
             border-radius: 6px;
             padding: 20px;
             background: var(--vscode-panel-background);
             min-height: 400px;
+            overflow: auto;
         }
-        .node {
-            display: inline-block;
-            padding: 8px 16px;
-            margin: 8px;
-            border-radius: 4px;
-            background: var(--vscode-button-background);
-            color: var(--vscode-button-foreground);
+        pre {
+            margin: 0;
+            font-family: 'SF Mono', Monaco, 'Courier New', monospace;
             font-size: 13px;
-            cursor: pointer;
-        }
-        .node:hover {
-            background: var(--vscode-button-hoverBackground);
-        }
-        .edge {
-            margin: 4px 0;
-            padding: 4px;
-            font-size: 12px;
-            color: var(--vscode-descriptionForeground);
-        }
-        .info {
-            margin-top: 20px;
-            padding: 10px;
-            background: var(--vscode-input-background);
-            border-radius: 4px;
-            font-size: 12px;
+            line-height: 1.5;
+            white-space: pre;
+            color: var(--vscode-foreground);
         }
     </style>
 </head>
 <body>
-    <h1>Project Dependency Graph</h1>
-    <div class="graph-container">
-        <div id="nodes"></div>
-        <div id="edges"></div>
+    <h1>📁 ${title}</h1>
+    <div class="ls-container">
+        <pre>${escapedLs}</pre>
     </div>
-    <div class="info">
-        <strong>Nodes:</strong> <span id="node-count">0</span> |
-        <strong>Edges:</strong> <span id="edge-count">0</span>
+</body>
+</html>`;
+    }
+
+    private getTraceHtml(treeData: string): string {
+        // Escape HTML special characters
+        const escapedTree = treeData
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+
+        return `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Celebi Project Tree</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            padding: 20px;
+            background: var(--vscode-editor-background);
+            color: var(--vscode-foreground);
+        }
+        h1 {
+            font-size: 18px;
+            margin-bottom: 20px;
+            color: var(--vscode-titleBar-activeForeground);
+        }
+        .tree-container {
+            border: 1px solid var(--vscode-panel-border);
+            border-radius: 6px;
+            padding: 20px;
+            background: var(--vscode-panel-background);
+            min-height: 400px;
+            overflow: auto;
+        }
+        pre {
+            margin: 0;
+            font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.5;
+            white-space: pre;
+            color: var(--vscode-foreground);
+        }
+    </style>
+</head>
+<body>
+    <h1>📁 Project Tree</h1>
+    <div class="tree-container">
+        <pre>${escapedTree}</pre>
     </div>
-    <script>
-        const nodes = ${nodesJson};
-        const edges = ${edgesJson};
-
-        // Render nodes
-        const nodesContainer = document.getElementById('nodes');
-        nodes.forEach(node => {
-            const div = document.createElement('div');
-            div.className = 'node';
-            div.textContent = node;
-            div.onclick = () => {
-                vscode.postMessage({ command: 'selectNode', node });
-            };
-            nodesContainer.appendChild(div);
-        });
-
-        // Render edges
-        const edgesContainer = document.getElementById('edges');
-        edges.forEach(edge => {
-            const div = document.createElement('div');
-            div.className = 'edge';
-            div.textContent = edge[0] + ' → ' + edge[1];
-            edgesContainer.appendChild(div);
-        });
-
-        // Update counts
-        document.getElementById('node-count').textContent = nodes.length;
-        document.getElementById('edge-count').textContent = edges.length;
-    </script>
 </body>
 </html>`;
     }

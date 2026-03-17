@@ -2,6 +2,7 @@ import { exec } from 'child_process';
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as os from 'os';
 
 let outputChannel: vscode.OutputChannel | undefined;
 
@@ -62,7 +63,21 @@ function getPythonPath(venvPath: string | undefined): string {
 }
 
 function buildPythonCode(pythonExpr: string, packagePath: string): string {
-    // Build code as a single line using semicolons to avoid indentation issues
+    // Check if expression contains newlines (multi-line code)
+    if (pythonExpr.includes('\n')) {
+        // Multi-line code - wrap it properly
+        const lines: string[] = [];
+        if (packagePath) {
+            lines.push(`import sys`);
+            lines.push(`sys.path.insert(0, '${packagePath}')`);
+        }
+        lines.push(`from CelebiChrono.interface import ChernManager, shell`);
+        lines.push(pythonExpr.trim());
+        lines.push(`print(result) if result is not None else None`);
+        return lines.join('\n');
+    }
+
+    // Single line expression - use semicolons for compactness
     const lines: string[] = [];
     if (packagePath) {
         lines.push(`import sys`);
@@ -84,8 +99,19 @@ export function execPython(pythonExpr: string): Promise<string> {
     const code = buildPythonCode(pythonExpr, packagePath);
 
     return new Promise((resolve, reject) => {
-        const escapedCode = code.replace(/"/g, '\\"');
-        const command = `"${pythonPath}" -c "${escapedCode}"`;
+        let command: string;
+        let tmpFile: string | undefined;
+
+        if (pythonExpr.includes('\n')) {
+            // Multi-line code: write to temp file and execute
+            tmpFile = path.join(os.tmpdir(), `celebi_${Date.now()}.py`);
+            fs.writeFileSync(tmpFile, code);
+            command = `"${pythonPath}" "${tmpFile}"`;
+        } else {
+            // Single line: use -c
+            const escapedCode = code.replace(/"/g, '\\"');
+            command = `"${pythonPath}" -c "${escapedCode}"`;
+        }
 
         const env = { ...process.env };
         if (venvPath) {
@@ -99,6 +125,15 @@ export function execPython(pythonExpr: string): Promise<string> {
         }
 
         exec(command, { cwd: projectPath, env }, (error, stdout, stderr) => {
+            // Clean up temp file if used
+            if (tmpFile && fs.existsSync(tmpFile)) {
+                try {
+                    fs.unlinkSync(tmpFile);
+                } catch {
+                    // Ignore cleanup errors
+                }
+            }
+
             const output = getOutputChannel();
             output.appendLine(`> ${pythonExpr}`);
             if (venvPath) {

@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { CelebiTreeProvider } from './treeProvider';
+import { CelebiTreeItem } from './treeItem';
 import { execPython, execPythonInTerminal, getOutputChannel } from './pythonRunner';
 import { CelebiWebviewProvider } from './webviewProvider';
 
@@ -217,6 +218,42 @@ export function activate(context: vscode.ExtensionContext) {
         })
     );
 
+    // Command to show directory listing (ls) in webview
+    context.subscriptions.push(
+        vscode.commands.registerCommand('celebi.showLs', async (item?: CelebiTreeItem) => {
+            try {
+                let result: string;
+                let title: string;
+
+                if (item && item.objectPath) {
+                    // Get object name from path
+                    const projectPath = await execPython('shell.MANAGER.current_object().path');
+                    let objectName: string;
+                    if (item.objectPath === projectPath) {
+                        objectName = '.';
+                        title = 'Project Root';
+                    } else if (item.objectPath.startsWith(projectPath + '/')) {
+                        objectName = item.objectPath.substring(projectPath.length + 1);
+                        title = objectName;
+                    } else {
+                        objectName = item.objectPath.split('/').pop() || item.objectPath;
+                        title = objectName;
+                    }
+                    result = await execPython(`shell.MANAGER.sub_object('${objectName}').ls()`);
+                } else {
+                    result = await execPython('shell.ls()');
+                    title = 'Current Directory';
+                }
+
+                // Show in webview like Trace Visualization
+                await webviewProvider.showLsView(title, result);
+            } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                vscode.window.showErrorMessage(`Celebi: ${message}`);
+            }
+        })
+    );
+
     // Command to show trace visualization
     context.subscriptions.push(
         vscode.commands.registerCommand('celebi.showTrace', async (objectName?: string) => {
@@ -240,6 +277,142 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.commands.registerCommand('celebi.gitHistory', async () => {
             try {
                 await execPython('shell.history()');
+            } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                vscode.window.showErrorMessage(`Celebi: ${message}`);
+            }
+        })
+    );
+
+    // Command to create new task in a project/directory
+    context.subscriptions.push(
+        vscode.commands.registerCommand('celebi.createTask', async (item?: CelebiTreeItem) => {
+            const projectPath = await execPython('shell.MANAGER.current_object().path');
+            let parentPath: string;
+
+            if (item && item.objectPath) {
+                parentPath = item.objectPath === projectPath ? '.' : item.objectPath.substring(projectPath.length + 1);
+            } else {
+                parentPath = '.';
+            }
+
+            const taskName = await vscode.window.showInputBox({
+                prompt: `Enter new task name (will be created in: ${parentPath === '.' ? 'project root' : parentPath})`,
+                placeHolder: 'e.g., NewTask'
+            });
+            if (!taskName) { return; }
+
+            try {
+                const targetPath = parentPath === '.' ? taskName : `${parentPath}/${taskName}`;
+                await execPython(`shell.mktask('${targetPath}')`);
+                vscode.window.showInformationMessage(`Task '${taskName}' created successfully`);
+                provider.refresh();
+            } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                vscode.window.showErrorMessage(`Celebi: ${message}`);
+            }
+        })
+    );
+
+    // Command to create new algorithm in a project/directory
+    context.subscriptions.push(
+        vscode.commands.registerCommand('celebi.createAlgorithm', async (item?: CelebiTreeItem) => {
+            const projectPath = await execPython('shell.MANAGER.current_object().path');
+            let parentPath: string;
+
+            if (item && item.objectPath) {
+                parentPath = item.objectPath === projectPath ? '.' : item.objectPath.substring(projectPath.length + 1);
+            } else {
+                parentPath = '.';
+            }
+
+            const algoName = await vscode.window.showInputBox({
+                prompt: `Enter new algorithm name (will be created in: ${parentPath === '.' ? 'project root' : parentPath})`,
+                placeHolder: 'e.g., NewAlgorithm'
+            });
+            if (!algoName) { return; }
+
+            try {
+                const targetPath = parentPath === '.' ? algoName : `${parentPath}/${algoName}`;
+                await execPython(`shell.mkalgorithm('${targetPath}')`);
+                vscode.window.showInformationMessage(`Algorithm '${algoName}' created successfully`);
+                provider.refresh();
+            } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                vscode.window.showErrorMessage(`Celebi: ${message}`);
+            }
+        })
+    );
+
+    // Command to create new directory in a project/directory
+    context.subscriptions.push(
+        vscode.commands.registerCommand('celebi.createDirectory', async (item?: CelebiTreeItem) => {
+            const projectPath = await execPython('shell.MANAGER.current_object().path');
+            let parentPath: string;
+
+            if (item && item.objectPath) {
+                parentPath = item.objectPath === projectPath ? '.' : item.objectPath.substring(projectPath.length + 1);
+            } else {
+                parentPath = '.';
+            }
+
+            const dirName = await vscode.window.showInputBox({
+                prompt: `Enter new directory name (will be created in: ${parentPath === '.' ? 'project root' : parentPath})`,
+                placeHolder: 'e.g., NewDirectory'
+            });
+            if (!dirName) { return; }
+
+            try {
+                const targetPath = parentPath === '.' ? dirName : `${parentPath}/${dirName}`;
+                await execPython(`shell.mkdir('${targetPath}')`);
+                vscode.window.showInformationMessage(`Directory '${dirName}' created successfully`);
+                provider.refresh();
+            } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                vscode.window.showErrorMessage(`Celebi: ${message}`);
+            }
+        })
+    );
+
+    // Command to remove object with confirmation
+    context.subscriptions.push(
+        vscode.commands.registerCommand('celebi.removeObject', async (item: CelebiTreeItem) => {
+            if (!item || !item.objectPath) {
+                vscode.window.showErrorMessage('No object selected');
+                return;
+            }
+
+            const projectPath = await execPython('shell.MANAGER.current_object().path');
+            const objectName = item.objectPath === projectPath ? '.' : item.objectPath.substring(projectPath.length + 1);
+            const objectType = item.objectType;
+
+            // Danger warning confirmation
+            const confirm = await vscode.window.showWarningMessage(
+                `Are you sure you want to REMOVE this ${objectType}?\n\n"${item.label}"\n\nThis action CANNOT be undone and may delete files permanently!`,
+                { modal: true },
+                'Yes, Remove It',
+                'Cancel'
+            );
+
+            if (confirm !== 'Yes, Remove It') {
+                return;
+            }
+
+            // Second confirmation for extra safety
+            const confirm2 = await vscode.window.showInputBox({
+                prompt: `Type "REMOVE" to confirm deletion of ${objectType} "${item.label}"`,
+                placeHolder: 'Type REMOVE'
+            });
+
+            if (confirm2 !== 'REMOVE') {
+                vscode.window.showInformationMessage('Removal cancelled');
+                return;
+            }
+
+            try {
+                await execPython(`shell.MANAGER.sub_object('${objectName}').remove()`);
+                vscode.window.showInformationMessage(`${objectType} '${item.label}' removed successfully`);
+                provider.refresh();
             } catch (error) {
                 const message = error instanceof Error ? error.message : String(error);
                 vscode.window.showErrorMessage(`Celebi: ${message}`);

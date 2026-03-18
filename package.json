@@ -388,6 +388,11 @@
           "group": "inline@4"
         },
         {
+          "command": "celebi.viewResults",
+          "when": "view == celebiTreeView && viewItem == object-view-group",
+          "group": "inline@5"
+        },
+        {
           "command": "celebi.submit",
           "when": "view == celebiTreeView && viewItem == actions-group",
           "group": "inline@1"

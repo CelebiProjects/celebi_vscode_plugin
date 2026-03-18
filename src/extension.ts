@@ -658,8 +658,18 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Command to view task results (browse output files)
     context.subscriptions.push(
-        vscode.commands.registerCommand('celebi.viewResults', async (objectName: string) => {
+        vscode.commands.registerCommand('celebi.viewResults', async (arg?: string | { objectPath: string }) => {
             try {
+                let objectName: string;
+                if (arg && typeof arg === 'object' && 'objectPath' in arg) {
+                    const result = await getObjectNameFromArg(arg);
+                    objectName = result.objectName;
+                } else if (typeof arg === 'string') {
+                    objectName = arg;
+                } else {
+                    objectName = '.';
+                }
+
                 // First try to get view URL for browser using impview on the task object
                 const urlResult = await execPython(
                     `shell.MANAGER.sub_object('${objectName}').impview()`

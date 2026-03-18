@@ -103,15 +103,18 @@
       },
       {
         "command": "celebi.impress",
-        "title": "Impress Object"
+        "title": "Impress Object",
+        "icon": "$(tag)"
       },
       {
         "command": "celebi.switchProject",
-        "title": "Switch Project"
+        "title": "Switch Project",
+        "icon": "$(folder-opened)"
       },
       {
         "command": "celebi.execute",
-        "title": "Execute Shell Command"
+        "title": "Execute Shell Command",
+        "icon": "$(terminal)"
       },
       {
         "command": "celebi.showTrace",
@@ -157,6 +160,76 @@
         "command": "celebi.removeObject",
         "title": "Remove Object",
         "icon": "$(trash)"
+      },
+      {
+        "command": "celebi.showStatus",
+        "title": "Status",
+        "icon": "$(pulse)"
+      },
+      {
+        "command": "celebi.showTree",
+        "title": "Tree",
+        "icon": "$(list-tree)"
+      },
+      {
+        "command": "celebi.showJobs",
+        "title": "Jobs",
+        "icon": "$(server)"
+      },
+      {
+        "command": "celebi.objectStatus",
+        "title": "Status",
+        "icon": "$(pulse)"
+      },
+      {
+        "command": "celebi.objectChanges",
+        "title": "Changes",
+        "icon": "$(diff)"
+      },
+      {
+        "command": "celebi.objectHistory",
+        "title": "History",
+        "icon": "$(history)"
+      },
+      {
+        "command": "celebi.objectSubmit",
+        "title": "Submit",
+        "icon": "$(run)"
+      },
+      {
+        "command": "celebi.objectJob",
+        "title": "Job",
+        "icon": "$(server)"
+      },
+      {
+        "command": "celebi.objectResubmit",
+        "title": "Resubmit",
+        "icon": "$(debug-restart)"
+      },
+      {
+        "command": "celebi.objectResults",
+        "title": "Results",
+        "icon": "$(output)"
+      },
+      {
+        "command": "celebi.objectImpress",
+        "title": "Impress",
+        "icon": "$(tag)"
+      },
+      {
+        "command": "celebi.objectPre",
+        "title": "Pre",
+        "icon": "$(arrow-left)"
+      },
+      {
+        "command": "celebi.objectSuc",
+        "title": "Suc",
+        "icon": "$(arrow-right)"
+      },
+      {
+        "command": "celebi.objectCat",
+        "title": "Cat",
+        "icon": "$(file-text)"
       }
     ],
     "menus": {
@@ -192,6 +265,62 @@
         {
           "command": "celebi.removeObject",
           "when": "false"
+        },
+        {
+          "command": "celebi.showStatus",
+          "when": "false"
+        },
+        {
+          "command": "celebi.showTree",
+          "when": "false"
+        },
+        {
+          "command": "celebi.showJobs",
+          "when": "false"
+        },
+        {
+          "command": "celebi.objectStatus",
+          "when": "false"
+        },
+        {
+          "command": "celebi.objectChanges",
+          "when": "false"
+        },
+        {
+          "command": "celebi.objectHistory",
+          "when": "false"
+        },
+        {
+          "command": "celebi.objectSubmit",
+          "when": "false"
+        },
+        {
+          "command": "celebi.objectJob",
+          "when": "false"
+        },
+        {
+          "command": "celebi.objectResubmit",
+          "when": "false"
+        },
+        {
+          "command": "celebi.objectResults",
+          "when": "false"
+        },
+        {
+          "command": "celebi.objectImpress",
+          "when": "false"
+        },
+        {
+          "command": "celebi.objectPre",
+          "when": "false"
+        },
+        {
+          "command": "celebi.objectSuc",
+          "when": "false"
+        },
+        {
+          "command": "celebi.objectCat",
+          "when": "false"
         }
       ],
       "view/item/context": [
@@ -199,6 +328,61 @@
           "command": "celebi.runPythonPackage",
           "when": "view == celebiTreeView && viewItem == task",
           "group": "inline"
+        },
+        {
+          "command": "celebi.showStatus",
+          "when": "view == celebiTreeView && viewItem == view-group",
+          "group": "inline@1"
+        },
+        {
+          "command": "celebi.showTree",
+          "when": "view == celebiTreeView && viewItem == view-group",
+          "group": "inline@2"
+        },
+        {
+          "command": "celebi.showLs",
+          "when": "view == celebiTreeView && viewItem == view-group",
+          "group": "inline@3"
+        },
+        {
+          "command": "celebi.showJobs",
+          "when": "view == celebiTreeView && viewItem == view-group",
+          "group": "inline@4"
+        },
+        {
+          "command": "celebi.submit",
+          "when": "view == celebiTreeView && viewItem == actions-group",
+          "group": "inline@1"
+        },
+        {
+          "command": "celebi.impress",
+          "when": "view == celebiTreeView && viewItem == actions-group",
+          "group": "inline@2"
+        },
+        {
+          "command": "celebi.switchProject",
+          "when": "view == celebiTreeView && viewItem == actions-group",
+          "group": "inline@3"
+        },
+        {
+          "command": "celebi.execute",
+          "when": "view == celebiTreeView && viewItem == actions-group",
+          "group": "inline@4"
+        },
+        {
+          "command": "celebi.showTrace",
+          "when": "view == celebiTreeView && viewItem == git-group",
+          "group": "inline@1"
+        },
+        {
+          "command": "celebi.gitStatus",
+          "when": "view == celebiTreeView && viewItem == git-group",
+          "group": "inline@2"
+        },
+        {
+          "command": "celebi.gitHistory",
+          "when": "view == celebiTreeView && viewItem == git-group",
+          "group": "inline@3"
         },
         {
           "command": "celebi.createTask",
@@ -219,6 +403,66 @@
           "command": "celebi.removeObject",
           "when": "view == celebiTreeView && (viewItem == project || viewItem == directory || viewItem == task || viewItem == algorithm || viewItem == data)",
           "group": "inline@9"
+        },
+        {
+          "command": "celebi.objectStatus",
+          "when": "view == celebiTreeView && viewItem == info-group",
+          "group": "inline@1"
+        },
+        {
+          "command": "celebi.showLs",
+          "when": "view == celebiTreeView && viewItem == info-group",
+          "group": "inline@2"
+        },
+        {
+          "command": "celebi.objectChanges",
+          "when": "view == celebiTreeView && viewItem == info-group",
+          "group": "inline@3"
+        },
+        {
+          "command": "celebi.objectHistory",
+          "when": "view == celebiTreeView && viewItem == info-group",
+          "group": "inline@4"
+        },
+        {
+          "command": "celebi.objectSubmit",
+          "when": "view == celebiTreeView && viewItem == exec-group",
+          "group": "inline@1"
+        },
+        {
+          "command": "celebi.objectJob",
+          "when": "view == celebiTreeView && viewItem == exec-group",
+          "group": "inline@2"
+        },
+        {
+          "command": "celebi.objectResubmit",
+          "when": "view == celebiTreeView && viewItem == exec-group",
+          "group": "inline@3"
+        },
+        {
+          "command": "celebi.objectResults",
+          "when": "view == celebiTreeView && viewItem == exec-group",
+          "group": "inline@4"
+        },
+        {
+          "command": "celebi.objectImpress",
+          "when": "view == celebiTreeView && viewItem == exec-group",
+          "group": "inline@5"
+        },
+        {
+          "command": "celebi.objectPre",
+          "when": "view == celebiTreeView && viewItem == exec-group",
+          "group": "inline@6"
+        },
+        {
+          "command": "celebi.objectSuc",
+          "when": "view == celebiTreeView && viewItem == exec-group",
+          "group": "inline@7"
+        },
+        {
+          "command": "celebi.objectCat",
+          "when": "view == celebiTreeView && viewItem == exec-group",
+          "group": "inline@8"
         },
         {
           "command": "celebi.submit",

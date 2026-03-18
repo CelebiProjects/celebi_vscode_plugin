@@ -86,151 +86,123 @@ export class CelebiTreeProvider implements vscode.TreeDataProvider<CelebiTreeIte
                 }
             );
 
-            // Add quick action items
-            const statusItem = new CelebiTreeItem(
-                'Status',
-                'unknown',
+            // Create group items with inline buttons
+            // View group - Status, Tree, LS, Jobs
+            const viewGroup = new CelebiTreeItem(
+                'View',
+                'view-group',
                 '',
-                vscode.TreeItemCollapsibleState.None,
-                {
-                    title: 'Status',
-                    command: 'celebi.runPythonPackage',
-                    arguments: ['shell.status()'],
-                    tooltip: 'Show project status'
-                }
+                vscode.TreeItemCollapsibleState.None
             );
-            statusItem.iconPath = new vscode.ThemeIcon('pulse');
+            viewGroup.iconPath = new vscode.ThemeIcon('preview', new vscode.ThemeColor('icon.foreground'));
 
-            const treeItem = new CelebiTreeItem(
-                'Tree View',
-                'unknown',
+            // Actions group - Submit, Impress, Switch, Execute
+            const actionsGroup = new CelebiTreeItem(
+                'Actions',
+                'actions-group',
                 '',
-                vscode.TreeItemCollapsibleState.None,
-                {
-                    title: 'Tree',
-                    command: 'celebi.runPythonPackage',
-                    arguments: ['shell.tree()'],
-                    tooltip: 'Show project tree'
-                }
+                vscode.TreeItemCollapsibleState.None
             );
-            treeItem.iconPath = new vscode.ThemeIcon('list-tree');
+            actionsGroup.iconPath = new vscode.ThemeIcon('zap', new vscode.ThemeColor('testing.iconQueued'));
 
-            const lsItem = new CelebiTreeItem(
-                'List (LS)',
-                'unknown',
+            // Git group - Trace, Git Status, Git History
+            const gitGroup = new CelebiTreeItem(
+                'Git & Trace',
+                'git-group',
                 '',
-                vscode.TreeItemCollapsibleState.None,
-                {
-                    title: 'LS',
-                    command: 'celebi.showLs',
-                    tooltip: 'Show directory listing (ls)'
-                }
+                vscode.TreeItemCollapsibleState.None
             );
-            lsItem.iconPath = new vscode.ThemeIcon('list-unordered');
+            gitGroup.iconPath = new vscode.ThemeIcon('git-branch', new vscode.ThemeColor('gitDecoration.addedResourceForeground'));
 
-            const jobsItem = new CelebiTreeItem(
-                'Jobs',
-                'unknown',
-                '',
-                vscode.TreeItemCollapsibleState.None,
-                {
-                    title: 'Jobs',
-                    command: 'celebi.runPythonPackage',
-                    arguments: ['shell.jobs()'],
-                    tooltip: 'Show jobs'
-                }
-            );
-            jobsItem.iconPath = new vscode.ThemeIcon('server');
-
-            // Add command buttons
+            // Keep individual command items for the list below
             const submitItem = new CelebiTreeItem(
-                'Submit...',
+                '',
                 'unknown',
                 '',
                 vscode.TreeItemCollapsibleState.None,
                 {
                     title: 'Submit',
                     command: 'celebi.submit',
-                    tooltip: 'Submit a task'
+                    tooltip: 'Submit'
                 }
             );
             submitItem.iconPath = new vscode.ThemeIcon('run');
 
             const impressItem = new CelebiTreeItem(
-                'Impress...',
+                '',
                 'unknown',
                 '',
                 vscode.TreeItemCollapsibleState.None,
                 {
                     title: 'Impress',
                     command: 'celebi.impress',
-                    tooltip: 'Impress an object'
+                    tooltip: 'Impress'
                 }
             );
             impressItem.iconPath = new vscode.ThemeIcon('tag');
 
             const switchItem = new CelebiTreeItem(
-                'Switch Project...',
+                '',
                 'unknown',
                 '',
                 vscode.TreeItemCollapsibleState.None,
                 {
-                    title: 'Switch Project',
+                    title: 'Switch',
                     command: 'celebi.switchProject',
-                    tooltip: 'Switch to another project'
+                    tooltip: 'Switch Project'
                 }
             );
             switchItem.iconPath = new vscode.ThemeIcon('folder-opened');
 
             const executeItem = new CelebiTreeItem(
-                'Execute Command...',
+                '',
                 'unknown',
                 '',
                 vscode.TreeItemCollapsibleState.None,
                 {
                     title: 'Execute',
                     command: 'celebi.execute',
-                    tooltip: 'Execute arbitrary shell command'
+                    tooltip: 'Execute Command'
                 }
             );
             executeItem.iconPath = new vscode.ThemeIcon('terminal');
 
-            // Add visualization and git items
+            // Add visualization and git items (icon-only)
             const traceItem = new CelebiTreeItem(
-                'Trace Visualization',
+                '',
                 'unknown',
                 '',
                 vscode.TreeItemCollapsibleState.None,
                 {
                     title: 'Trace',
                     command: 'celebi.showTrace',
-                    tooltip: 'Show dependency trace visualization'
+                    tooltip: 'Trace'
                 }
             );
             traceItem.iconPath = new vscode.ThemeIcon('graph');
 
             const gitStatusItem = new CelebiTreeItem(
-                'Git Status',
+                '',
                 'unknown',
                 '',
                 vscode.TreeItemCollapsibleState.None,
                 {
-                    title: 'Git Status',
+                    title: 'Git',
                     command: 'celebi.gitStatus',
-                    tooltip: 'Show git/changes status'
+                    tooltip: 'Git Status'
                 }
             );
             gitStatusItem.iconPath = new vscode.ThemeIcon('git-branch');
 
             const gitHistoryItem = new CelebiTreeItem(
-                'Git History',
+                '',
                 'unknown',
                 '',
                 vscode.TreeItemCollapsibleState.None,
                 {
-                    title: 'Git History',
+                    title: 'History',
                     command: 'celebi.gitHistory',
-                    tooltip: 'Show git history'
+                    tooltip: 'Git History'
                 }
             );
             gitHistoryItem.iconPath = new vscode.ThemeIcon('history');
@@ -249,17 +221,9 @@ export class CelebiTreeProvider implements vscode.TreeDataProvider<CelebiTreeIte
                 diteItem,
                 projectItem,
                 separatorItem,
-                statusItem,
-                treeItem,
-                lsItem,
-                jobsItem,
-                submitItem,
-                impressItem,
-                switchItem,
-                executeItem,
-                traceItem,
-                gitStatusItem,
-                gitHistoryItem
+                viewGroup,
+                actionsGroup,
+                gitGroup
             ];
         } catch (error) {
             // No project or error - show message
@@ -376,7 +340,8 @@ export class CelebiTreeProvider implements vscode.TreeDataProvider<CelebiTreeIte
     }
 
     private async getObjectActions(object: CelebiTreeItem): Promise<CelebiTreeItem[]> {
-        const actions: CelebiTreeItem[] = [];
+        const groups: CelebiTreeItem[] = [];
+
         // Calculate relative path from project root for nested objects
         const projectPath = await execPython('shell.MANAGER.current_object().path');
         let objectName: string;
@@ -388,221 +353,59 @@ export class CelebiTreeProvider implements vscode.TreeDataProvider<CelebiTreeIte
             objectName = object.label;
         }
 
-        // Common actions for all object types
-        actions.push(
-            new CelebiTreeItem(
-                'Status',
-                'action',
-                '',
-                vscode.TreeItemCollapsibleState.None,
-                {
-                    title: 'Status',
-                    command: 'celebi.runPythonPackage',
-                    arguments: [`shell.MANAGER.sub_object('${objectName}').status()`],
-                    tooltip: `Show status of ${objectName}`
-                }
-            ),
-            new CelebiTreeItem(
-                'List (LS)',
-                'action',
-                '',
-                vscode.TreeItemCollapsibleState.None,
-                {
-                    title: 'List',
-                    command: 'celebi.showLs',
-                    arguments: [object],
-                    tooltip: `List contents of ${objectName}`
-                }
-            ),
-            new CelebiTreeItem(
-                'Changes',
-                'action',
-                '',
-                vscode.TreeItemCollapsibleState.None,
-                {
-                    title: 'Changes',
-                    command: 'celebi.runPythonPackage',
-                    arguments: [`shell.MANAGER.sub_object('${objectName}').changes()`],
-                    tooltip: `Show changes for ${objectName}`
-                }
-            ),
-            new CelebiTreeItem(
-                'History',
-                'action',
-                '',
-                vscode.TreeItemCollapsibleState.None,
-                {
-                    title: 'History',
-                    command: 'celebi.runPythonPackage',
-                    arguments: [`shell.MANAGER.sub_object('${objectName}').history()`],
-                    tooltip: `Show history of ${objectName}`
-                }
-            )
-        );
-
-        // Type-specific actions
-        if (object.objectType === 'task') {
-            actions.push(
-                new CelebiTreeItem(
-                    'Submit',
-                    'action',
-                    '',
-                    vscode.TreeItemCollapsibleState.None,
-                    {
-                        title: 'Submit',
-                        command: 'celebi.runPythonPackage',
-                        arguments: [`shell.MANAGER.sub_object('${objectName}').submit()`],
-                        tooltip: `Submit ${objectName}`
-                    }
-                ),
-                new CelebiTreeItem(
-                    'Job Status',
-                    'action',
-                    '',
-                    vscode.TreeItemCollapsibleState.None,
-                    {
-                        title: 'Job Status',
-                        command: 'celebi.runPythonPackage',
-                        arguments: [`shell.MANAGER.sub_object('${objectName}').job_status()`],
-                        tooltip: `Show job status of ${objectName}`
-                    }
-                ),
-                new CelebiTreeItem(
-                    'Resubmit',
-                    'action',
-                    '',
-                    vscode.TreeItemCollapsibleState.None,
-                    {
-                        title: 'Resubmit',
-                        command: 'celebi.runPythonPackage',
-                        arguments: [`shell.MANAGER.sub_object('${objectName}').resubmit()`],
-                        tooltip: `Resubmit ${objectName}`
-                    }
-                ),
-                new CelebiTreeItem(
-                    'View Results',
-                    'action',
-                    '',
-                    vscode.TreeItemCollapsibleState.None,
-                    {
-                        title: 'View Results',
-                        command: 'celebi.viewResults',
-                        arguments: [objectName],
-                        tooltip: `Browse and view output files of ${objectName}`
-                    }
-                )
-            );
-        }
-
-        if (object.objectType === 'algorithm') {
-            actions.push(
-                new CelebiTreeItem(
-                    'Impress',
-                    'action',
-                    '',
-                    vscode.TreeItemCollapsibleState.None,
-                    {
-                        title: 'Impress',
-                        command: 'celebi.runPythonPackage',
-                        arguments: [`shell.MANAGER.sub_object('${objectName}').impress()`],
-                        tooltip: `Impress ${objectName}`
-                    }
-                ),
-                new CelebiTreeItem(
-                    'Predecessors',
-                    'action',
-                    '',
-                    vscode.TreeItemCollapsibleState.None,
-                    {
-                        title: 'Predecessors',
-                        command: 'celebi.runPythonPackage',
-                        arguments: [`shell.MANAGER.sub_object('${objectName}').show_predecessors()`],
-                        tooltip: `Show predecessors of ${objectName}`
-                    }
-                ),
-                new CelebiTreeItem(
-                    'Successors',
-                    'action',
-                    '',
-                    vscode.TreeItemCollapsibleState.None,
-                    {
-                        title: 'Successors',
-                        command: 'celebi.runPythonPackage',
-                        arguments: [`shell.MANAGER.sub_object('${objectName}').show_successors()`],
-                        tooltip: `Show successors of ${objectName}`
-                    }
-                )
-            );
-        }
-
-        if (object.objectType === 'data') {
-            actions.push(
-                new CelebiTreeItem(
-                    'Cat',
-                    'action',
-                    '',
-                    vscode.TreeItemCollapsibleState.None,
-                    {
-                        title: 'Cat',
-                        command: 'celebi.runPythonPackage',
-                        arguments: [`shell.MANAGER.sub_object('${objectName}').cat()`],
-                        tooltip: `Cat ${objectName}`
-                    }
-                ),
-                new CelebiTreeItem(
-                    'Impress',
-                    'action',
-                    '',
-                    vscode.TreeItemCollapsibleState.None,
-                    {
-                        title: 'Impress',
-                        command: 'celebi.runPythonPackage',
-                        arguments: [`shell.MANAGER.sub_object('${objectName}').impress()`],
-                        tooltip: `Impress ${objectName}`
-                    }
-                )
-            );
-        }
-
-        // Add icons for actions
-        actions.forEach(action => {
-            switch (action.label) {
-                case 'Status':
-                    action.iconPath = new vscode.ThemeIcon('pulse');
-                    break;
-                case 'List (LS)':
-                    action.iconPath = new vscode.ThemeIcon('list-unordered');
-                    break;
-                case 'Changes':
-                    action.iconPath = new vscode.ThemeIcon('diff');
-                    break;
-                case 'History':
-                    action.iconPath = new vscode.ThemeIcon('history');
-                    break;
-                case 'Submit':
-                case 'Resubmit':
-                    action.iconPath = new vscode.ThemeIcon('run');
-                    break;
-                case 'Job Status':
-                    action.iconPath = new vscode.ThemeIcon('server');
-                    break;
-                case 'Impress':
-                    action.iconPath = new vscode.ThemeIcon('tag');
-                    break;
-                case 'Predecessors':
-                case 'Successors':
-                    action.iconPath = new vscode.ThemeIcon('arrow-swap');
-                    break;
-                case 'Cat':
-                    action.iconPath = new vscode.ThemeIcon('file-text');
-                    break;
-                case 'View Results':
-                    action.iconPath = new vscode.ThemeIcon('output');
-                    break;
+        // Info group - stores object info for context menu actions
+        const infoGroup = new CelebiTreeItem(
+            'Info',
+            'info-group',
+            object.objectPath,
+            vscode.TreeItemCollapsibleState.None,
+            {
+                title: 'Status',
+                command: 'celebi.runPythonPackage',
+                arguments: [`shell.MANAGER.sub_object('${objectName}').status()`],
+                tooltip: 'Status'
             }
-        });
+        );
+        infoGroup.iconPath = new vscode.ThemeIcon('info', new vscode.ThemeColor('testing.iconSkipped'));
+        groups.push(infoGroup);
 
-        return actions;
+        // Execute/Actions group - stores object info
+        // Determine primary command based on object type
+        let execCommand: vscode.Command | undefined;
+        if (object.objectType === 'task') {
+            execCommand = {
+                title: 'Submit',
+                command: 'celebi.runPythonPackage',
+                arguments: [`shell.MANAGER.sub_object('${objectName}').submit()`],
+                tooltip: 'Submit'
+            };
+        } else if (object.objectType === 'algorithm') {
+            execCommand = {
+                title: 'Impress',
+                command: 'celebi.runPythonPackage',
+                arguments: [`shell.MANAGER.sub_object('${objectName}').impress()`],
+                tooltip: 'Impress'
+            };
+        } else if (object.objectType === 'data') {
+            execCommand = {
+                title: 'Cat',
+                command: 'celebi.runPythonPackage',
+                arguments: [`shell.MANAGER.sub_object('${objectName}').cat()`],
+                tooltip: 'Cat'
+            };
+        }
+
+        const execGroup = new CelebiTreeItem(
+            object.objectType === 'task' ? 'Execute' : 'Actions',
+            'exec-group',
+            object.objectPath,
+            vscode.TreeItemCollapsibleState.None,
+            execCommand
+        );
+        execGroup.iconPath = new vscode.ThemeIcon('zap', new vscode.ThemeColor('charts.blue'));
+        groups.push(execGroup);
+
+        return groups;
     }
 
     refresh(): void {

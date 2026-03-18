@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { CelebiTreeProvider } from './treeProvider';
-import { CelebiTreeItem } from './treeItem';
 import { execPython, execPythonInTerminal, getOutputChannel } from './pythonRunner';
 import { CelebiWebviewProvider } from './webviewProvider';
 
@@ -38,7 +37,7 @@ export function activate(context: vscode.ExtensionContext) {
     }
     updateStatusBar();
 
-    // File watcher for automatic tree refresh
+    // File watcher for automatic sidebar refresh
     const config = vscode.workspace.getConfiguration('celebi');
     const projectPath = config.get<string>('projectPath', '') ||
                         vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
@@ -102,7 +101,7 @@ export function activate(context: vscode.ExtensionContext) {
                 await execPython('shell.MANAGER.current_object().printed_dite_status()');
                 provider.refresh();
             } catch (error) {
-                // Even if there's an error, refresh the tree to show the error state
+                // Even if there's an error, refresh the tree
                 provider.refresh();
                 const message = error instanceof Error ? error.message : String(error);
                 vscode.window.showErrorMessage(`Celebi DITE: ${message}`);
@@ -218,34 +217,85 @@ export function activate(context: vscode.ExtensionContext) {
         })
     );
 
+    // Command to show status
+    context.subscriptions.push(
+        vscode.commands.registerCommand('celebi.showStatus', async () => {
+            try {
+                await execPython('shell.status()');
+            } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                vscode.window.showErrorMessage(`Celebi: ${message}`);
+            }
+        })
+    );
+
+    // Command to show tree
+    context.subscriptions.push(
+        vscode.commands.registerCommand('celebi.showTree', async () => {
+            try {
+                await execPython('shell.tree()');
+            } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                vscode.window.showErrorMessage(`Celebi: ${message}`);
+            }
+        })
+    );
+
+    // Command to show jobs
+    context.subscriptions.push(
+        vscode.commands.registerCommand('celebi.showJobs', async () => {
+            try {
+                await execPython('shell.jobs()');
+            } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                vscode.window.showErrorMessage(`Celebi: ${message}`);
+            }
+        })
+    );
+
+    // Helper to get object name from tree item or string path
+    async function getObjectNameFromArg(arg: unknown): Promise<{ objectName: string; title: string }> {
+        // Handle tree item
+        if (arg && typeof arg === 'object' && 'objectPath' in arg) {
+            const treeItem = arg as { objectPath: string; label?: string };
+            const objectPath = treeItem.objectPath;
+            const projectPath = await execPython('shell.MANAGER.current_object().path');
+
+            if (objectPath === projectPath) {
+                return { objectName: '.', title: 'Project Root' };
+            } else if (objectPath.startsWith(projectPath + '/')) {
+                const name = objectPath.substring(projectPath.length + 1);
+                return { objectName: name, title: name };
+            } else {
+                const name = objectPath.split('/').pop() || objectPath;
+                return { objectName: name, title: name };
+            }
+        }
+
+        // Handle string path
+        if (typeof arg === 'string') {
+            const projectPath = await execPython('shell.MANAGER.current_object().path');
+            if (arg === projectPath) {
+                return { objectName: '.', title: 'Project Root' };
+            } else if (arg.startsWith(projectPath + '/')) {
+                const name = arg.substring(projectPath.length + 1);
+                return { objectName: name, title: name };
+            } else {
+                const name = arg.split('/').pop() || arg;
+                return { objectName: name, title: name };
+            }
+        }
+
+        // Default to current directory
+        return { objectName: '.', title: 'Current Directory' };
+    }
+
     // Command to show directory listing (ls) in webview
     context.subscriptions.push(
-        vscode.commands.registerCommand('celebi.showLs', async (item?: CelebiTreeItem) => {
+        vscode.commands.registerCommand('celebi.showLs', async (arg?: unknown) => {
             try {
-                let result: string;
-                let title: string;
-
-                if (item && item.objectPath) {
-                    // Get object name from path
-                    const projectPath = await execPython('shell.MANAGER.current_object().path');
-                    let objectName: string;
-                    if (item.objectPath === projectPath) {
-                        objectName = '.';
-                        title = 'Project Root';
-                    } else if (item.objectPath.startsWith(projectPath + '/')) {
-                        objectName = item.objectPath.substring(projectPath.length + 1);
-                        title = objectName;
-                    } else {
-                        objectName = item.objectPath.split('/').pop() || item.objectPath;
-                        title = objectName;
-                    }
-                    result = await execPython(`shell.MANAGER.sub_object('${objectName}').ls()`);
-                } else {
-                    result = await execPython('shell.ls()');
-                    title = 'Current Directory';
-                }
-
-                // Show in webview like Trace Visualization
+                const { objectName, title } = await getObjectNameFromArg(arg);
+                const result = await execPython(`shell.MANAGER.sub_object('${objectName}').ls()`);
                 await webviewProvider.showLsView(title, result);
             } catch (error) {
                 const message = error instanceof Error ? error.message : String(error);
@@ -258,6 +308,177 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.commands.registerCommand('celebi.showTrace', async (objectName?: string) => {
             await webviewProvider.showTraceView(objectName);
+        })
+    );
+
+    // Object-level action commands (triggered from group context menus)
+    context.subscriptions.push(
+        vscode.commands.registerCommand('celebi.objectStatus', async (treeItem?: { objectPath: string }) => {
+            if (!treeItem) return;
+            try {
+                const { objectName } = await getObjectNameFromArg(treeItem);
+                await execPython(`shell.MANAGER.sub_object('${objectName}').status()`);
+            } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                vscode.window.showErrorMessage(`Celebi: ${message}`);
+            }
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('celebi.objectChanges', async (treeItem?: { objectPath: string }) => {
+            if (!treeItem) return;
+            try {
+                const { objectName } = await getObjectNameFromArg(treeItem);
+                await execPython(`shell.MANAGER.sub_object('${objectName}').changes()`);
+            } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                vscode.window.showErrorMessage(`Celebi: ${message}`);
+            }
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('celebi.objectHistory', async (treeItem?: { objectPath: string }) => {
+            if (!treeItem) return;
+            try {
+                const { objectName } = await getObjectNameFromArg(treeItem);
+                await execPython(`shell.MANAGER.sub_object('${objectName}').history()`);
+            } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                vscode.window.showErrorMessage(`Celebi: ${message}`);
+            }
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('celebi.objectSubmit', async (treeItem?: { objectPath: string }) => {
+            if (!treeItem) return;
+            try {
+                const { objectName } = await getObjectNameFromArg(treeItem);
+                await execPython(`shell.MANAGER.sub_object('${objectName}').submit()`);
+                provider.refresh();
+            } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                vscode.window.showErrorMessage(`Celebi: ${message}`);
+            }
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('celebi.objectJob', async (treeItem?: { objectPath: string }) => {
+            if (!treeItem) return;
+            try {
+                const { objectName } = await getObjectNameFromArg(treeItem);
+                await execPython(`shell.MANAGER.sub_object('${objectName}').job_status()`);
+            } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                vscode.window.showErrorMessage(`Celebi: ${message}`);
+            }
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('celebi.objectResubmit', async (treeItem?: { objectPath: string }) => {
+            if (!treeItem) return;
+            try {
+                const { objectName } = await getObjectNameFromArg(treeItem);
+                await execPython(`shell.MANAGER.sub_object('${objectName}').resubmit()`);
+                provider.refresh();
+            } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                vscode.window.showErrorMessage(`Celebi: ${message}`);
+            }
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('celebi.objectResults', async (treeItem?: { objectPath: string }) => {
+            if (!treeItem) return;
+            try {
+                const { objectName } = await getObjectNameFromArg(treeItem);
+                // Get view URL for browser
+                const urlResult = await execPython(`shell.MANAGER.sub_object('${objectName}').impview()`);
+                if (urlResult && urlResult.startsWith('http')) {
+                    await webviewProvider.showBrowser(objectName, urlResult);
+                    return;
+                }
+                // Fallback to listing output files
+                const filesResult = await execPython(`shell.MANAGER.sub_object('${objectName}').list_output_files()`);
+                const files = parseOutputFiles(filesResult);
+                if (files.length === 0) {
+                    vscode.window.showInformationMessage(`No output files found for ${objectName}`);
+                    return;
+                }
+                const selected = await vscode.window.showQuickPick(files, {
+                    placeHolder: `Select a file to view from ${objectName}`
+                });
+                if (selected) {
+                    await execPython(`shell.MANAGER.sub_object('${objectName}').view('${selected}')`);
+                }
+            } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                vscode.window.showErrorMessage(`Celebi: ${message}`);
+            }
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('celebi.objectImpress', async (treeItem?: { objectPath: string }) => {
+            if (!treeItem) return;
+            try {
+                const { objectName } = await getObjectNameFromArg(treeItem);
+                const impression = await vscode.window.showInputBox({
+                    prompt: 'Enter impression name (optional)',
+                    placeHolder: 'e.g., v1.0'
+                });
+                const pythonExpr = impression
+                    ? `shell.MANAGER.sub_object('${objectName}').impress('${impression}')`
+                    : `shell.MANAGER.sub_object('${objectName}').impress()`;
+                await execPython(pythonExpr);
+            } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                vscode.window.showErrorMessage(`Celebi: ${message}`);
+            }
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('celebi.objectPre', async (treeItem?: { objectPath: string }) => {
+            if (!treeItem) return;
+            try {
+                const { objectName } = await getObjectNameFromArg(treeItem);
+                await execPython(`shell.MANAGER.sub_object('${objectName}').show_predecessors()`);
+            } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                vscode.window.showErrorMessage(`Celebi: ${message}`);
+            }
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('celebi.objectSuc', async (treeItem?: { objectPath: string }) => {
+            if (!treeItem) return;
+            try {
+                const { objectName } = await getObjectNameFromArg(treeItem);
+                await execPython(`shell.MANAGER.sub_object('${objectName}').show_successors()`);
+            } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                vscode.window.showErrorMessage(`Celebi: ${message}`);
+            }
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('celebi.objectCat', async (treeItem?: { objectPath: string }) => {
+            if (!treeItem) return;
+            try {
+                const { objectName } = await getObjectNameFromArg(treeItem);
+                await execPython(`shell.MANAGER.sub_object('${objectName}').cat()`);
+            } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                vscode.window.showErrorMessage(`Celebi: ${message}`);
+            }
         })
     );
 
@@ -286,15 +507,8 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Command to create new task in a project/directory
     context.subscriptions.push(
-        vscode.commands.registerCommand('celebi.createTask', async (item?: CelebiTreeItem) => {
-            const projectPath = await execPython('shell.MANAGER.current_object().path');
-            let parentPath: string;
-
-            if (item && item.objectPath) {
-                parentPath = item.objectPath === projectPath ? '.' : item.objectPath.substring(projectPath.length + 1);
-            } else {
-                parentPath = '.';
-            }
+        vscode.commands.registerCommand('celebi.createTask', async (parentPathArg?: string) => {
+            const parentPath = parentPathArg || '.';
 
             const taskName = await vscode.window.showInputBox({
                 prompt: `Enter new task name (will be created in: ${parentPath === '.' ? 'project root' : parentPath})`,
@@ -316,15 +530,8 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Command to create new algorithm in a project/directory
     context.subscriptions.push(
-        vscode.commands.registerCommand('celebi.createAlgorithm', async (item?: CelebiTreeItem) => {
-            const projectPath = await execPython('shell.MANAGER.current_object().path');
-            let parentPath: string;
-
-            if (item && item.objectPath) {
-                parentPath = item.objectPath === projectPath ? '.' : item.objectPath.substring(projectPath.length + 1);
-            } else {
-                parentPath = '.';
-            }
+        vscode.commands.registerCommand('celebi.createAlgorithm', async (parentPathArg?: string) => {
+            const parentPath = parentPathArg || '.';
 
             const algoName = await vscode.window.showInputBox({
                 prompt: `Enter new algorithm name (will be created in: ${parentPath === '.' ? 'project root' : parentPath})`,
@@ -346,15 +553,8 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Command to create new directory in a project/directory
     context.subscriptions.push(
-        vscode.commands.registerCommand('celebi.createDirectory', async (item?: CelebiTreeItem) => {
-            const projectPath = await execPython('shell.MANAGER.current_object().path');
-            let parentPath: string;
-
-            if (item && item.objectPath) {
-                parentPath = item.objectPath === projectPath ? '.' : item.objectPath.substring(projectPath.length + 1);
-            } else {
-                parentPath = '.';
-            }
+        vscode.commands.registerCommand('celebi.createDirectory', async (parentPathArg?: string) => {
+            const parentPath = parentPathArg || '.';
 
             const dirName = await vscode.window.showInputBox({
                 prompt: `Enter new directory name (will be created in: ${parentPath === '.' ? 'project root' : parentPath})`,
@@ -376,19 +576,29 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Command to remove object with confirmation
     context.subscriptions.push(
-        vscode.commands.registerCommand('celebi.removeObject', async (item: CelebiTreeItem) => {
-            if (!item || !item.objectPath) {
-                vscode.window.showErrorMessage('No object selected');
-                return;
-            }
+        vscode.commands.registerCommand('celebi.removeObject', async (arg1?: string | { objectPath: string; objectType?: string }, arg2?: string) => {
+            let targetName: string;
+            let targetType: string;
 
-            const projectPath = await execPython('shell.MANAGER.current_object().path');
-            const objectName = item.objectPath === projectPath ? '.' : item.objectPath.substring(projectPath.length + 1);
-            const objectType = item.objectType;
+            // Handle tree item object from context menu
+            if (arg1 && typeof arg1 === 'object' && 'objectPath' in arg1) {
+                const treeItem = arg1 as { objectPath: string; objectType?: string };
+                const { objectName } = await getObjectNameFromArg(treeItem);
+                targetName = objectName;
+                targetType = treeItem.objectType || 'object';
+            } else if (typeof arg1 === 'string') {
+                // Handle string arguments (objName, objType)
+                targetName = arg1;
+                targetType = arg2 || 'object';
+            } else {
+                // Default to current project
+                targetName = '.';
+                targetType = 'project';
+            }
 
             // Danger warning confirmation
             const confirm = await vscode.window.showWarningMessage(
-                `Are you sure you want to REMOVE this ${objectType}?\n\n"${item.label}"\n\nThis action CANNOT be undone and may delete files permanently!`,
+                `Are you sure you want to REMOVE this ${targetType}?\n\n"${targetName}"\n\nThis action CANNOT be undone and may delete files permanently!`,
                 { modal: true },
                 'Yes, Remove It',
                 'Cancel'
@@ -400,7 +610,7 @@ export function activate(context: vscode.ExtensionContext) {
 
             // Second confirmation for extra safety
             const confirm2 = await vscode.window.showInputBox({
-                prompt: `Type "REMOVE" to confirm deletion of ${objectType} "${item.label}"`,
+                prompt: `Type "REMOVE" to confirm deletion of ${targetType} "${targetName}"`,
                 placeHolder: 'Type REMOVE'
             });
 
@@ -410,8 +620,8 @@ export function activate(context: vscode.ExtensionContext) {
             }
 
             try {
-                await execPython(`shell.MANAGER.sub_object('${objectName}').remove()`);
-                vscode.window.showInformationMessage(`${objectType} '${item.label}' removed successfully`);
+                await execPython(`shell.MANAGER.sub_object('${targetName}').remove()`);
+                vscode.window.showInformationMessage(`${targetType} '${targetName}' removed successfully`);
                 provider.refresh();
             } catch (error) {
                 const message = error instanceof Error ? error.message : String(error);

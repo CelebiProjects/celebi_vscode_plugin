@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 
-export type CelebiObjectType = 'project' | 'algorithm' | 'task' | 'data' | 'directory' | 'action' | 'separator' | 'unknown' | 'view-group' | 'actions-group' | 'git-group' | 'info-group' | 'exec-group';
+export type CelebiObjectType = 'project' | 'algorithm' | 'task' | 'data' | 'directory' | 'action' | 'separator' | 'unknown' | 'view-group' | 'actions-group' | 'git-group' | 'info-group' | 'exec-group' | 'object-view-group';
 
 export class CelebiTreeItem extends vscode.TreeItem {
     children?: CelebiTreeItem[];
@@ -50,6 +50,8 @@ export class CelebiTreeItem extends vscode.TreeItem {
                 return new vscode.ThemeIcon('info', new vscode.ThemeColor('testing.iconSkipped'));
             case 'exec-group':
                 return new vscode.ThemeIcon('zap', new vscode.ThemeColor('charts.blue'));
+            case 'object-view-group':
+                return new vscode.ThemeIcon('preview', new vscode.ThemeColor('icon.foreground'));
             default:
                 return new vscode.ThemeIcon('file');
         }

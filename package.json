@@ -182,6 +182,16 @@
         "icon": "$(pulse)"
       },
       {
+        "command": "celebi.objectTree",
+        "title": "Tree",
+        "icon": "$(list-tree)"
+      },
+      {
+        "command": "celebi.objectJobs",
+        "title": "Jobs",
+        "icon": "$(server)"
+      },
+      {
         "command": "celebi.objectChanges",
         "title": "Changes",
         "icon": "$(diff)"
@@ -283,6 +293,14 @@
           "when": "false"
         },
         {
+          "command": "celebi.objectTree",
+          "when": "false"
+        },
+        {
+          "command": "celebi.objectJobs",
+          "when": "false"
+        },
+        {
           "command": "celebi.objectChanges",
           "when": "false"
         },
@@ -347,6 +365,26 @@
         {
           "command": "celebi.showJobs",
           "when": "view == celebiTreeView && viewItem == view-group",
+          "group": "inline@4"
+        },
+        {
+          "command": "celebi.objectStatus",
+          "when": "view == celebiTreeView && viewItem == object-view-group",
+          "group": "inline@1"
+        },
+        {
+          "command": "celebi.objectTree",
+          "when": "view == celebiTreeView && viewItem == object-view-group",
+          "group": "inline@2"
+        },
+        {
+          "command": "celebi.showLs",
+          "when": "view == celebiTreeView && viewItem == object-view-group",
+          "group": "inline@3"
+        },
+        {
+          "command": "celebi.objectJobs",
+          "when": "view == celebiTreeView && viewItem == object-view-group",
           "group": "inline@4"
         },
         {

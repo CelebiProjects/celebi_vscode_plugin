@@ -326,6 +326,32 @@ export function activate(context: vscode.ExtensionContext) {
     );
 
     context.subscriptions.push(
+        vscode.commands.registerCommand('celebi.objectTree', async (treeItem?: { objectPath: string }) => {
+            if (!treeItem) return;
+            try {
+                const { objectName } = await getObjectNameFromArg(treeItem);
+                await execPython(`shell.MANAGER.sub_object('${objectName}').tree()`);
+            } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                vscode.window.showErrorMessage(`Celebi: ${message}`);
+            }
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('celebi.objectJobs', async (treeItem?: { objectPath: string }) => {
+            if (!treeItem) return;
+            try {
+                const { objectName } = await getObjectNameFromArg(treeItem);
+                await execPython(`shell.MANAGER.sub_object('${objectName}').jobs()`);
+            } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                vscode.window.showErrorMessage(`Celebi: ${message}`);
+            }
+        })
+    );
+
+    context.subscriptions.push(
         vscode.commands.registerCommand('celebi.objectChanges', async (treeItem?: { objectPath: string }) => {
             if (!treeItem) return;
             try {

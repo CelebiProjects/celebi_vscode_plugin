@@ -353,10 +353,10 @@ export class CelebiTreeProvider implements vscode.TreeDataProvider<CelebiTreeIte
             objectName = object.label;
         }
 
-        // Info group - stores object info for context menu actions
-        const infoGroup = new CelebiTreeItem(
-            'Info',
-            'info-group',
+        // View group - Status, Tree, List, Jobs
+        const viewGroup = new CelebiTreeItem(
+            'View',
+            'object-view-group',
             object.objectPath,
             vscode.TreeItemCollapsibleState.None,
             {
@@ -366,8 +366,8 @@ export class CelebiTreeProvider implements vscode.TreeDataProvider<CelebiTreeIte
                 tooltip: 'Status'
             }
         );
-        infoGroup.iconPath = new vscode.ThemeIcon('info', new vscode.ThemeColor('testing.iconSkipped'));
-        groups.push(infoGroup);
+        viewGroup.iconPath = new vscode.ThemeIcon('preview', new vscode.ThemeColor('icon.foreground'));
+        groups.push(viewGroup);
 
         // Execute/Actions group - stores object info
         // Determine primary command based on object type

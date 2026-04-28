@@ -152,12 +152,49 @@ export function activate(context: vscode.ExtensionContext) {
             console.log('[DITE] Manually showing DITE Messages panel');
             console.log('[DITE] messagePanelProvider exists:', !!messagePanelProvider);
             console.log('[DITE] messageStore history:', messageStore.getHistory().length);
-            console.log('[DITE] resolve count:', (messagePanelProvider as any).getResolveCount?.() || 'N/A');
+            console.log('[DITE] resolve count:', messagePanelProvider.getResolveCount());
+
+            // Try to create a webview panel directly as a fallback
             try {
-                await vscode.commands.executeCommand('diteMessagePanel.focus');
-                console.log('[DITE] Panel focused successfully');
+                const panel = vscode.window.createWebviewPanel(
+                    'diteMessagePanel',
+                    'DITE Messages',
+                    vscode.ViewColumn.Beside,
+                    {}
+                );
+                console.log('[DITE] Created fallback webview panel');
+
+                // Generate HTML content
+                const messages = messageStore.getHistory();
+                const messagesHtml = messages.length > 0
+                    ? messages.map(msg => `
+                        <div style="border-left: 3px solid ${msg.status === 'success' ? '#4ec9b0' : '#f48771'}; padding: 8px 12px; margin-bottom: 12px; background: var(--vscode-panel-background);">
+                            <div style="font-family: monospace; font-size: 12px; color: var(--vscode-textLink-foreground); margin-bottom: 4px;">$ ${msg.command}</div>
+                            <div style="font-family: monospace; font-size: 12px; white-space: pre-wrap;">${msg.status === 'success' ? '✓' : '✗'} ${msg.output}</div>
+                        </div>
+                    `).join('')
+                    : '<div style="text-align: center; color: var(--vscode-descriptionForeground); padding: 20px;">No messages yet</div>';
+
+                panel.webview.html = `
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <meta charset="UTF-8">
+                        <style>
+                            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace; background: var(--vscode-editor-background); color: var(--vscode-foreground); padding: 8px; }
+                        </style>
+                    </head>
+                    <body>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--vscode-panel-border);">
+                            <h2 style="font-size: 12px; font-weight: 600;">DITE Messages</h2>
+                        </div>
+                        ${messagesHtml}
+                    </body>
+                    </html>`;
+
+                console.log('[DITE] Fallback panel HTML set');
             } catch (error) {
-                console.error('[DITE] Failed to focus panel:', error);
+                console.error('[DITE] Failed to create fallback panel:', error);
             }
         })
     );

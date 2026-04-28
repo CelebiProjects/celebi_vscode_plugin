@@ -100,7 +100,10 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.commands.registerCommand('celebi.runPythonPackage', async (pythonExpr: string) => {
             try {
-                await execPython(pythonExpr);
+                await executeAndLog(
+                    pythonExpr,
+                    () => execPython(pythonExpr)
+                );
             } catch (error) {
                 const message = error instanceof Error ? error.message : String(error);
                 vscode.window.showErrorMessage(`Celebi: ${message}`);
@@ -253,7 +256,10 @@ export function activate(context: vscode.ExtensionContext) {
                 });
 
                 if (selected) {
-                    await execPython(`shell.MANAGER.switch_project('${selected}')`);
+                    await executeAndLog(
+                        `switch project to ${selected}`,
+                        () => execPython(`shell.MANAGER.switch_project('${escapePythonString(selected)}')`)
+                    );
                     provider.refresh();
                     updateStatusBar();
                 }
@@ -274,7 +280,10 @@ export function activate(context: vscode.ExtensionContext) {
             if (!command) { return; }
 
             try {
-                await execPython(command);
+                await executeAndLog(
+                    command,
+                    () => execPython(command)
+                );
             } catch (error) {
                 const message = error instanceof Error ? error.message : String(error);
                 vscode.window.showErrorMessage(`Celebi: ${message}`);
@@ -286,7 +295,10 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.commands.registerCommand('celebi.showStatus', async () => {
             try {
-                await execPython('shell.status()');
+                await executeAndLog(
+                    'show status',
+                    () => execPython('shell.status()')
+                );
             } catch (error) {
                 const message = error instanceof Error ? error.message : String(error);
                 vscode.window.showErrorMessage(`Celebi: ${message}`);
@@ -298,7 +310,10 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.commands.registerCommand('celebi.showTree', async () => {
             try {
-                await execPython('shell.tree()');
+                await executeAndLog(
+                    'show tree',
+                    () => execPython('shell.tree()')
+                );
             } catch (error) {
                 const message = error instanceof Error ? error.message : String(error);
                 vscode.window.showErrorMessage(`Celebi: ${message}`);
@@ -310,7 +325,10 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.commands.registerCommand('celebi.showJobs', async () => {
             try {
-                await execPython('shell.jobs()');
+                await executeAndLog(
+                    'show jobs',
+                    () => execPython('shell.jobs()')
+                );
             } catch (error) {
                 const message = error instanceof Error ? error.message : String(error);
                 vscode.window.showErrorMessage(`Celebi: ${message}`);
@@ -360,7 +378,10 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.commands.registerCommand('celebi.showLs', async (arg?: unknown) => {
             try {
                 const { objectName, title } = await getObjectNameFromArg(arg);
-                const result = await execPython(`shell.MANAGER.sub_object('${objectName}').ls()`);
+                const result = await executeAndLog(
+                    `ls ${objectName}`,
+                    () => execPython(`shell.MANAGER.sub_object('${escapePythonString(objectName)}').ls()`)
+                );
                 await webviewProvider.showLsView(title, result);
             } catch (error) {
                 const message = error instanceof Error ? error.message : String(error);
@@ -382,7 +403,10 @@ export function activate(context: vscode.ExtensionContext) {
             if (!treeItem) return;
             try {
                 const { objectName } = await getObjectNameFromArg(treeItem);
-                await execPython(`shell.MANAGER.sub_object('${objectName}').status()`);
+                await executeAndLog(
+                    `status ${objectName}`,
+                    () => execPython(`shell.MANAGER.sub_object('${escapePythonString(objectName)}').status()`)
+                );
             } catch (error) {
                 const message = error instanceof Error ? error.message : String(error);
                 vscode.window.showErrorMessage(`Celebi: ${message}`);
@@ -395,7 +419,10 @@ export function activate(context: vscode.ExtensionContext) {
             if (!treeItem) return;
             try {
                 const { objectName } = await getObjectNameFromArg(treeItem);
-                await execPython(`shell.MANAGER.sub_object('${objectName}').tree()`);
+                await executeAndLog(
+                    `tree ${objectName}`,
+                    () => execPython(`shell.MANAGER.sub_object('${escapePythonString(objectName)}').tree()`)
+                );
             } catch (error) {
                 const message = error instanceof Error ? error.message : String(error);
                 vscode.window.showErrorMessage(`Celebi: ${message}`);
@@ -408,7 +435,10 @@ export function activate(context: vscode.ExtensionContext) {
             if (!treeItem) return;
             try {
                 const { objectName } = await getObjectNameFromArg(treeItem);
-                await execPython(`shell.MANAGER.sub_object('${objectName}').jobs()`);
+                await executeAndLog(
+                    `jobs ${objectName}`,
+                    () => execPython(`shell.MANAGER.sub_object('${escapePythonString(objectName)}').jobs()`)
+                );
             } catch (error) {
                 const message = error instanceof Error ? error.message : String(error);
                 vscode.window.showErrorMessage(`Celebi: ${message}`);
@@ -421,7 +451,10 @@ export function activate(context: vscode.ExtensionContext) {
             if (!treeItem) return;
             try {
                 const { objectName } = await getObjectNameFromArg(treeItem);
-                await execPython(`shell.MANAGER.sub_object('${objectName}').changes()`);
+                await executeAndLog(
+                    `changes ${objectName}`,
+                    () => execPython(`shell.MANAGER.sub_object('${escapePythonString(objectName)}').changes()`)
+                );
             } catch (error) {
                 const message = error instanceof Error ? error.message : String(error);
                 vscode.window.showErrorMessage(`Celebi: ${message}`);
@@ -434,7 +467,10 @@ export function activate(context: vscode.ExtensionContext) {
             if (!treeItem) return;
             try {
                 const { objectName } = await getObjectNameFromArg(treeItem);
-                await execPython(`shell.MANAGER.sub_object('${objectName}').history()`);
+                await executeAndLog(
+                    `history ${objectName}`,
+                    () => execPython(`shell.MANAGER.sub_object('${escapePythonString(objectName)}').history()`)
+                );
             } catch (error) {
                 const message = error instanceof Error ? error.message : String(error);
                 vscode.window.showErrorMessage(`Celebi: ${message}`);
@@ -465,7 +501,10 @@ export function activate(context: vscode.ExtensionContext) {
             if (!treeItem) return;
             try {
                 const { objectName } = await getObjectNameFromArg(treeItem);
-                await execPython(`shell.MANAGER.sub_object('${objectName}').job_status()`);
+                await executeAndLog(
+                    `job status ${objectName}`,
+                    () => execPython(`shell.MANAGER.sub_object('${escapePythonString(objectName)}').job_status()`)
+                );
             } catch (error) {
                 const message = error instanceof Error ? error.message : String(error);
                 vscode.window.showErrorMessage(`Celebi: ${message}`);
@@ -478,7 +517,10 @@ export function activate(context: vscode.ExtensionContext) {
             if (!treeItem) return;
             try {
                 const { objectName } = await getObjectNameFromArg(treeItem);
-                await execPython(`shell.MANAGER.sub_object('${objectName}').resubmit()`);
+                await executeAndLog(
+                    `resubmit ${objectName}`,
+                    () => execPython(`shell.MANAGER.sub_object('${escapePythonString(objectName)}').resubmit()`)
+                );
                 provider.refresh();
             } catch (error) {
                 const message = error instanceof Error ? error.message : String(error);
@@ -546,7 +588,10 @@ export function activate(context: vscode.ExtensionContext) {
             if (!treeItem) return;
             try {
                 const { objectName } = await getObjectNameFromArg(treeItem);
-                await execPython(`shell.MANAGER.sub_object('${objectName}').show_predecessors()`);
+                await executeAndLog(
+                    `predecessors ${objectName}`,
+                    () => execPython(`shell.MANAGER.sub_object('${escapePythonString(objectName)}').show_predecessors()`)
+                );
             } catch (error) {
                 const message = error instanceof Error ? error.message : String(error);
                 vscode.window.showErrorMessage(`Celebi: ${message}`);
@@ -559,7 +604,10 @@ export function activate(context: vscode.ExtensionContext) {
             if (!treeItem) return;
             try {
                 const { objectName } = await getObjectNameFromArg(treeItem);
-                await execPython(`shell.MANAGER.sub_object('${objectName}').show_successors()`);
+                await executeAndLog(
+                    `successors ${objectName}`,
+                    () => execPython(`shell.MANAGER.sub_object('${escapePythonString(objectName)}').show_successors()`)
+                );
             } catch (error) {
                 const message = error instanceof Error ? error.message : String(error);
                 vscode.window.showErrorMessage(`Celebi: ${message}`);
@@ -572,7 +620,10 @@ export function activate(context: vscode.ExtensionContext) {
             if (!treeItem) return;
             try {
                 const { objectName } = await getObjectNameFromArg(treeItem);
-                await execPython(`shell.MANAGER.sub_object('${objectName}').cat()`);
+                await executeAndLog(
+                    `cat ${objectName}`,
+                    () => execPython(`shell.MANAGER.sub_object('${escapePythonString(objectName)}').cat()`)
+                );
             } catch (error) {
                 const message = error instanceof Error ? error.message : String(error);
                 vscode.window.showErrorMessage(`Celebi: ${message}`);

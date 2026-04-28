@@ -137,7 +137,10 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.commands.registerCommand('celebi.refreshDite', async () => {
             try {
-                await execPython('shell.MANAGER.current_object().printed_dite_status()');
+                await executeAndLog(
+                    'refreshDite',
+                    () => execPython('shell.MANAGER.current_object().printed_dite_status()')
+                );
                 provider.refresh();
             } catch (error) {
                 // Even if there's an error, refresh the tree
@@ -152,7 +155,11 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.commands.registerCommand('celebi.openObject', async (objectPath: string) => {
             try {
-                await execPython(`shell.MANAGER.sub_object('${objectPath}').status()`);
+                const pythonExpr = `shell.MANAGER.sub_object('${objectPath}').status()`;
+                await executeAndLog(
+                    `open ${objectPath}`,
+                    () => execPython(pythonExpr)
+                );
             } catch (error) {
                 const message = error instanceof Error ? error.message : String(error);
                 vscode.window.showErrorMessage(`Celebi: ${message}`);
@@ -173,9 +180,15 @@ export function activate(context: vscode.ExtensionContext) {
                 ? `shell.MANAGER.sub_object('${objectName}').submit()`
                 : 'shell.submit()';
 
+            const commandName = objectName ? `submit ${objectName}` : 'submit';
+
             try {
-                await execPython(pythonExpr);
+                const result = await executeAndLog(
+                    commandName,
+                    () => execPython(pythonExpr)
+                );
                 provider.refresh();
+                vscode.window.showInformationMessage(`Task submitted: ${result}`);
             } catch (error) {
                 const message = error instanceof Error ? error.message : String(error);
                 vscode.window.showErrorMessage(`Celebi: ${message}`);
@@ -201,8 +214,14 @@ export function activate(context: vscode.ExtensionContext) {
                 ? `shell.MANAGER.sub_object('${objectName}').impress('${impression}')`
                 : `shell.MANAGER.sub_object('${objectName}').impress()`;
 
+            const commandName = impression ? `impress ${objectName} ${impression}` : `impress ${objectName}`;
+
             try {
-                await execPython(pythonExpr);
+                const result = await executeAndLog(
+                    commandName,
+                    () => execPython(pythonExpr)
+                );
+                vscode.window.showInformationMessage(`Impression created: ${result}`);
             } catch (error) {
                 const message = error instanceof Error ? error.message : String(error);
                 vscode.window.showErrorMessage(`Celebi: ${message}`);

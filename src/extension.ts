@@ -3,11 +3,23 @@ import * as path from 'path';
 import { CelebiTreeProvider } from './treeProvider';
 import { execPython, execPythonInTerminal, getOutputChannel } from './pythonRunner';
 import { CelebiWebviewProvider } from './webviewProvider';
+import { MessageStore, MessagePanelProvider } from './messagePanel';
 
 export function activate(context: vscode.ExtensionContext) {
     // Initialize output channel
     const outputChannel = getOutputChannel();
     context.subscriptions.push(outputChannel);
+
+    // Initialize message store for DITE panel
+    const messageStore = new MessageStore();
+    const messagePanelProvider = new MessagePanelProvider(messageStore);
+
+    context.subscriptions.push(
+        vscode.window.registerWebviewViewProvider(
+            MessagePanelProvider.viewType,
+            messagePanelProvider
+        )
+    );
 
     const provider = new CelebiTreeProvider();
     context.subscriptions.push(
@@ -36,6 +48,25 @@ export function activate(context: vscode.ExtensionContext) {
         }
     }
     updateStatusBar();
+
+    // Helper to execute command and log to message panel
+    async function executeAndLog(
+        commandName: string,
+        pythonExpr: string,
+        handler: () => Promise<string>
+    ): Promise<string> {
+        try {
+            const result = await handler();
+            messageStore.addMessage(commandName, result, 'success');
+            messagePanelProvider.updateWebview();
+            return result;
+        } catch (error) {
+            const errorMsg = error instanceof Error ? error.message : String(error);
+            messageStore.addMessage(commandName, errorMsg, 'error');
+            messagePanelProvider.updateWebview();
+            throw error;
+        }
+    }
 
     // File watcher for automatic sidebar refresh
     const config = vscode.workspace.getConfiguration('celebi');
@@ -91,6 +122,14 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.commands.registerCommand('celebi.refreshTree', () => {
             provider.refresh();
+        })
+    );
+
+    // Command to clear messages
+    context.subscriptions.push(
+        vscode.commands.registerCommand('celebi.clearMessages', () => {
+            messageStore.clear();
+            messagePanelProvider.updateWebview();
         })
     );
 

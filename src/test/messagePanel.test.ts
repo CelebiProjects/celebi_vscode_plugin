@@ -1,3 +1,4 @@
+/// <reference types="jest" />
 import { MessageStore, MessagePanelProvider } from '../messagePanel';
 
 describe('MessageStore', () => {

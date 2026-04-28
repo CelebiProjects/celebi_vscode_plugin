@@ -61,6 +61,7 @@ export class MessagePanelProvider implements vscode.WebviewViewProvider {
         context: vscode.WebviewViewResolveContext,
         _token: vscode.CancellationToken
     ): void | Thenable<void> {
+        console.log('[DITE] resolveWebviewView called');
         this.view = webviewView;
         webviewView.webview.options = {
             enableScripts: true,
@@ -69,9 +70,11 @@ export class MessagePanelProvider implements vscode.WebviewViewProvider {
 
         // If there were updates before the view was ready, apply them now
         if (this.pendingUpdate) {
+            console.log('[DITE] Applying pending update');
             this.updateWebview();
             this.pendingUpdate = false;
         } else {
+            console.log('[DITE] Updating webview for first time');
             this.updateWebview();
         }
 

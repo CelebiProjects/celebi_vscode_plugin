@@ -39,12 +39,17 @@ export class MessagePanelProvider implements vscode.WebviewViewProvider {
     private view?: vscode.WebviewView;
     private store: MessageStore;
     private disposables: vscode.Disposable[] = [];
+    private disposed = false;
 
     constructor(store: MessageStore) {
         this.store = store;
     }
 
     public dispose(): void {
+        if (this.disposed) {
+            return;
+        }
+        this.disposed = true;
         this.disposables.forEach(d => d.dispose());
         this.disposables = [];
         this.view = undefined;

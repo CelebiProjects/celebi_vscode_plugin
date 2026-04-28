@@ -265,6 +265,11 @@
           "command": "celebi.showTrace",
           "when": "view == celebiTreeView",
           "group": "navigation"
+        },
+        {
+          "command": "celebi.clearMessages",
+          "when": "view == diteMessagePanel",
+          "group": "navigation"
         }
       ],
       "commandPalette": [
@@ -350,6 +355,10 @@
         },
         {
           "command": "celebi.objectCat",
+          "when": "false"
+        },
+        {
+          "command": "celebi.clearMessages",
           "when": "false"
         }
       ],

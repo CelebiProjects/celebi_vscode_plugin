@@ -40,6 +40,7 @@ export class MessagePanelProvider implements vscode.WebviewViewProvider {
     private store: MessageStore;
     private disposables: vscode.Disposable[] = [];
     private disposed = false;
+    private pendingUpdate = false;
 
     constructor(store: MessageStore) {
         this.store = store;
@@ -65,7 +66,14 @@ export class MessagePanelProvider implements vscode.WebviewViewProvider {
             enableScripts: true,
             localResourceRoots: []
         };
-        this.updateWebview();
+
+        // If there were updates before the view was ready, apply them now
+        if (this.pendingUpdate) {
+            this.updateWebview();
+            this.pendingUpdate = false;
+        } else {
+            this.updateWebview();
+        }
 
         // Handle messages from webview
         this.disposables.push(
@@ -91,6 +99,9 @@ export class MessagePanelProvider implements vscode.WebviewViewProvider {
     public updateWebview(): void {
         if (this.view) {
             this.view.webview.html = this.getHtmlContent();
+        } else {
+            // Mark that we have pending updates for when the view is first shown
+            this.pendingUpdate = true;
         }
     }
 

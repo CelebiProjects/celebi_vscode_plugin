@@ -67,6 +67,11 @@
           "id": "celebiTreeView",
           "name": "Celebi",
           "icon": "media/icon.png"
+        },
+        {
+          "id": "diteMessagePanel",
+          "name": "DITE Messages",
+          "icon": "media/icon.png"
         }
       ]
     },
@@ -242,6 +247,11 @@
         "command": "celebi.objectCat",
         "title": "Cat",
         "icon": "$(file-text)"
+      },
+      {
+        "command": "celebi.clearMessages",
+        "title": "Clear DITE Messages",
+        "icon": "$(trash)"
       }
     ],
     "menus": {

@@ -9,6 +9,7 @@ export interface Message {
 
 export class MessageStore {
   private messages: Message[] = [];
+  private readonly maxHistory: number = 100;
 
   addMessage(command: string, output: string, status: 'success' | 'error'): void {
     this.messages.push({
@@ -17,6 +18,11 @@ export class MessageStore {
       timestamp: new Date(),
       status,
     });
+
+    // Enforce history limit
+    if (this.messages.length > this.maxHistory) {
+      this.messages = this.messages.slice(-this.maxHistory);
+    }
   }
 
   clear(): void {
@@ -41,6 +47,7 @@ export class MessagePanelProvider implements vscode.WebviewViewProvider {
     public dispose(): void {
         this.disposables.forEach(d => d.dispose());
         this.disposables = [];
+        this.view = undefined;
     }
 
     resolveWebviewView(
@@ -244,8 +251,9 @@ export class MessagePanelProvider implements vscode.WebviewViewProvider {
             '<': '&lt;',
             '>': '&gt;',
             '"': '&quot;',
-            "'": '&#039;'
+            "'": '&#039;',
+            '`': '&#96;'
         };
-        return text.replace(/[&<>"']/g, m => map[m]);
+        return text.replace(/[&<>"'`]/g, m => map[m]);
     }
 }

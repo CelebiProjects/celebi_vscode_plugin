@@ -70,6 +70,16 @@ export class MessagePanelProvider implements vscode.WebviewViewProvider {
         console.log(`[DITE] resolveWebviewView called (count: ${this.resolveCount})`);
         console.log(`[DITE] webviewView visible: ${webviewView.visible}`);
         this.view = webviewView;
+
+        // Listen for visibility changes
+        this.disposables.push(
+            webviewView.onDidChangeVisibility(() => {
+                console.log(`[DITE] Visibility changed: ${webviewView.visible}`);
+                if (webviewView.visible) {
+                    this.updateWebview();
+                }
+            })
+        );
         webviewView.webview.options = {
             enableScripts: true,
             localResourceRoots: []

@@ -32,9 +32,15 @@ export class MessagePanelProvider implements vscode.WebviewViewProvider {
     public static readonly viewType = 'diteMessagePanel';
     private view?: vscode.WebviewView;
     private store: MessageStore;
+    private disposables: vscode.Disposable[] = [];
 
     constructor(store: MessageStore) {
         this.store = store;
+    }
+
+    public dispose(): void {
+        this.disposables.forEach(d => d.dispose());
+        this.disposables = [];
     }
 
     resolveWebviewView(
@@ -50,16 +56,24 @@ export class MessagePanelProvider implements vscode.WebviewViewProvider {
         this.updateWebview();
 
         // Handle messages from webview
-        webviewView.webview.onDidReceiveMessage(message => {
-            if (message.command === 'clear') {
-                this.store.clear();
+        this.disposables.push(
+            webviewView.webview.onDidReceiveMessage(message => {
                 try {
-                    this.updateWebview();
+                    if (message.command === 'clear') {
+                        this.store.clear();
+                        this.updateWebview();
+                    }
                 } catch (error) {
-                    console.error('Failed to update webview after clearing messages:', error);
+                    console.error('Error handling webview message:', error);
                 }
-            }
-        });
+            })
+        );
+
+        this.disposables.push(
+            webviewView.onDidDispose(() => {
+                this.dispose();
+            })
+        );
     }
 
     public updateWebview(): void {
@@ -85,7 +99,7 @@ export class MessagePanelProvider implements vscode.WebviewViewProvider {
             .join('');
 
         return `<!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">

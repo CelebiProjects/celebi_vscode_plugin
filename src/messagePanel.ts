@@ -41,9 +41,14 @@ export class MessagePanelProvider implements vscode.WebviewViewProvider {
     private disposables: vscode.Disposable[] = [];
     private disposed = false;
     private pendingUpdate = false;
+    private resolveCount = 0;
 
     constructor(store: MessageStore) {
         this.store = store;
+    }
+
+    public getResolveCount(): number {
+        return this.resolveCount;
     }
 
     public dispose(): void {
@@ -61,7 +66,9 @@ export class MessagePanelProvider implements vscode.WebviewViewProvider {
         context: vscode.WebviewViewResolveContext,
         _token: vscode.CancellationToken
     ): void | Thenable<void> {
-        console.log('[DITE] resolveWebviewView called');
+        this.resolveCount++;
+        console.log(`[DITE] resolveWebviewView called (count: ${this.resolveCount})`);
+        console.log(`[DITE] webviewView visible: ${webviewView.visible}`);
         this.view = webviewView;
         webviewView.webview.options = {
             enableScripts: true,

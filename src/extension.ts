@@ -147,6 +147,7 @@ export function activate(context: vscode.ExtensionContext) {
             console.log('[DITE] Manually showing DITE Messages panel');
             console.log('[DITE] messagePanelProvider exists:', !!messagePanelProvider);
             console.log('[DITE] messageStore history:', messageStore.getHistory().length);
+            console.log('[DITE] resolve count:', (messagePanelProvider as any).getResolveCount?.() || 'N/A');
             try {
                 await vscode.commands.executeCommand('diteMessagePanel.focus');
                 console.log('[DITE] Panel focused successfully');

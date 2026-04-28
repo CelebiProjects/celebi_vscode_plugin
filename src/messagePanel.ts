@@ -1,3 +1,5 @@
+import * as vscode from 'vscode';
+
 export interface Message {
   command: string;
   output: string;
@@ -26,8 +28,6 @@ export class MessageStore {
   }
 }
 
-import * as vscode from 'vscode';
-
 export class MessagePanelProvider implements vscode.WebviewViewProvider {
     public static readonly viewType = 'diteMessagePanel';
     private view?: vscode.WebviewView;
@@ -40,7 +40,7 @@ export class MessagePanelProvider implements vscode.WebviewViewProvider {
     resolveWebviewView(
         webviewView: vscode.WebviewView,
         context: vscode.WebviewViewResolveContext,
-        token: vscode.CancellationToken
+        _token: vscode.CancellationToken
     ): void | Thenable<void> {
         this.view = webviewView;
         webviewView.webview.options = {
@@ -53,7 +53,11 @@ export class MessagePanelProvider implements vscode.WebviewViewProvider {
         webviewView.webview.onDidReceiveMessage(message => {
             if (message.command === 'clear') {
                 this.store.clear();
-                this.updateWebview();
+                try {
+                    this.updateWebview();
+                } catch (error) {
+                    console.error('Failed to update webview after clearing messages:', error);
+                }
             }
         });
     }
@@ -64,7 +68,17 @@ export class MessagePanelProvider implements vscode.WebviewViewProvider {
         }
     }
 
+    private getNonce(): string {
+        let text = '';
+        const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+        for (let i = 0; i < 32; i++) {
+            text += possible.charAt(Math.floor(Math.random() * possible.length));
+        }
+        return text;
+    }
+
     private getHtmlContent(): string {
+        const nonce = this.getNonce();
         const messages = this.store.getHistory();
         const messagesHtml = messages
             .map(msg => this.renderMessage(msg))
@@ -75,6 +89,7 @@ export class MessagePanelProvider implements vscode.WebviewViewProvider {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';" />
     <title>DITE Messages</title>
     <style>
         * {
@@ -87,6 +102,9 @@ export class MessagePanelProvider implements vscode.WebviewViewProvider {
             background: var(--vscode-editor-background);
             color: var(--vscode-foreground);
             padding: 8px;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
         }
         .header {
             display: flex;
@@ -95,6 +113,7 @@ export class MessagePanelProvider implements vscode.WebviewViewProvider {
             margin-bottom: 8px;
             padding-bottom: 8px;
             border-bottom: 1px solid var(--vscode-panel-border);
+            flex-shrink: 0;
         }
         .header h2 {
             font-size: 12px;
@@ -119,8 +138,9 @@ export class MessagePanelProvider implements vscode.WebviewViewProvider {
             display: flex;
             flex-direction: column;
             gap: 12px;
-            max-height: calc(100vh - 100px);
+            flex: 1;
             overflow-y: auto;
+            min-height: 0;
         }
         .message {
             border-left: 3px solid var(--vscode-panel-border);
@@ -129,10 +149,10 @@ export class MessagePanelProvider implements vscode.WebviewViewProvider {
             border-radius: 3px;
         }
         .message.success {
-            border-left-color: #4ec9b0;
+            border-left-color: var(--vscode-testing-iconPassed);
         }
         .message.error {
-            border-left-color: #f48771;
+            border-left-color: var(--vscode-errorForeground);
         }
         .command {
             font-family: 'Courier New', monospace;
@@ -153,12 +173,12 @@ export class MessagePanelProvider implements vscode.WebviewViewProvider {
         }
         .output.success::before {
             content: '✓ ';
-            color: #4ec9b0;
+            color: var(--vscode-testing-iconPassed);
             font-weight: bold;
         }
         .output.error::before {
             content: '✗ ';
-            color: #f48771;
+            color: var(--vscode-errorForeground);
             font-weight: bold;
         }
         .timestamp {
@@ -177,12 +197,12 @@ export class MessagePanelProvider implements vscode.WebviewViewProvider {
 <body>
     <div class="header">
         <h2>DITE Messages</h2>
-        <button class="clear-btn" onclick="clearMessages()">Clear</button>
+        <button class="clear-btn" onclick="clearMessages()" aria-label="Clear all messages">Clear</button>
     </div>
     <div class="messages-container">
         ${messagesHtml || '<div class="empty-state">No messages yet. Run a command to see output here.</div>'}
     </div>
-    <script>
+    <script nonce="${nonce}">
         const vscode = acquireVsCodeApi();
 
         function clearMessages() {

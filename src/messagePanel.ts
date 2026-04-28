@@ -45,6 +45,10 @@ export class MessagePanelProvider implements vscode.WebviewViewProvider {
 
     constructor(store: MessageStore) {
         this.store = store;
+        // Debug: log resolve count every 5 seconds
+        setInterval(() => {
+            console.log(`[DITE] Timer: resolveCount=${this.resolveCount}, viewExists=${!!this.view}`);
+        }, 5000);
     }
 
     public getResolveCount(): number {

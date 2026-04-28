@@ -20,6 +20,7 @@ export function activate(context: vscode.ExtensionContext) {
             messagePanelProvider
         )
     );
+    context.subscriptions.push(messagePanelProvider);
 
     const provider = new CelebiTreeProvider();
     context.subscriptions.push(
@@ -52,7 +53,6 @@ export function activate(context: vscode.ExtensionContext) {
     // Helper to execute command and log to message panel
     async function executeAndLog(
         commandName: string,
-        pythonExpr: string,
         handler: () => Promise<string>
     ): Promise<string> {
         try {

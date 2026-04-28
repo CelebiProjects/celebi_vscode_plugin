@@ -22,7 +22,12 @@ export function activate(context: vscode.ExtensionContext) {
         context.subscriptions.push(
             vscode.window.registerWebviewViewProvider(
                 MessagePanelProvider.viewType,
-                messagePanelProvider
+                messagePanelProvider,
+                {
+                    webviewOptions: {
+                        retainContextWhenHidden: true
+                    }
+                }
             )
         );
         console.log('[DITE] WebviewViewProvider registered successfully');

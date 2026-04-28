@@ -68,6 +68,10 @@ export function activate(context: vscode.ExtensionContext) {
         }
     }
 
+    function escapePythonString(str: string): string {
+        return str.replace(/'/g, "\\'");
+    }
+
     // File watcher for automatic sidebar refresh
     const config = vscode.workspace.getConfiguration('celebi');
     const projectPath = config.get<string>('projectPath', '') ||
@@ -142,6 +146,7 @@ export function activate(context: vscode.ExtensionContext) {
                     () => execPython('shell.MANAGER.current_object().printed_dite_status()')
                 );
                 provider.refresh();
+                vscode.window.showInformationMessage(`DITE status refreshed`);
             } catch (error) {
                 // Even if there's an error, refresh the tree
                 provider.refresh();
@@ -155,11 +160,12 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.commands.registerCommand('celebi.openObject', async (objectPath: string) => {
             try {
-                const pythonExpr = `shell.MANAGER.sub_object('${objectPath}').status()`;
+                const pythonExpr = `shell.MANAGER.sub_object('${escapePythonString(objectPath)}').status()`;
                 await executeAndLog(
                     `open ${objectPath}`,
                     () => execPython(pythonExpr)
                 );
+                vscode.window.showInformationMessage(`Object status displayed`);
             } catch (error) {
                 const message = error instanceof Error ? error.message : String(error);
                 vscode.window.showErrorMessage(`Celebi: ${message}`);
@@ -177,7 +183,7 @@ export function activate(context: vscode.ExtensionContext) {
             if (objectName === undefined) { return; } // Cancelled
 
             const pythonExpr = objectName
-                ? `shell.MANAGER.sub_object('${objectName}').submit()`
+                ? `shell.MANAGER.sub_object('${escapePythonString(objectName)}').submit()`
                 : 'shell.submit()';
 
             const commandName = objectName ? `submit ${objectName}` : 'submit';
@@ -211,8 +217,8 @@ export function activate(context: vscode.ExtensionContext) {
             });
 
             const pythonExpr = impression
-                ? `shell.MANAGER.sub_object('${objectName}').impress('${impression}')`
-                : `shell.MANAGER.sub_object('${objectName}').impress()`;
+                ? `shell.MANAGER.sub_object('${escapePythonString(objectName)}').impress('${escapePythonString(impression)}')`
+                : `shell.MANAGER.sub_object('${escapePythonString(objectName)}').impress()`;
 
             const commandName = impression ? `impress ${objectName} ${impression}` : `impress ${objectName}`;
 
@@ -221,6 +227,7 @@ export function activate(context: vscode.ExtensionContext) {
                     commandName,
                     () => execPython(pythonExpr)
                 );
+                provider.refresh();
                 vscode.window.showInformationMessage(`Impression created: ${result}`);
             } catch (error) {
                 const message = error instanceof Error ? error.message : String(error);
@@ -440,8 +447,12 @@ export function activate(context: vscode.ExtensionContext) {
             if (!treeItem) return;
             try {
                 const { objectName } = await getObjectNameFromArg(treeItem);
-                await execPython(`shell.MANAGER.sub_object('${objectName}').submit()`);
+                await executeAndLog(
+                    `submit ${objectName}`,
+                    () => execPython(`shell.MANAGER.sub_object('${escapePythonString(objectName)}').submit()`)
+                );
                 provider.refresh();
+                vscode.window.showInformationMessage(`Task submitted: ${objectName}`);
             } catch (error) {
                 const message = error instanceof Error ? error.message : String(error);
                 vscode.window.showErrorMessage(`Celebi: ${message}`);
@@ -516,10 +527,13 @@ export function activate(context: vscode.ExtensionContext) {
                     prompt: 'Enter impression name (optional)',
                     placeHolder: 'e.g., v1.0'
                 });
-                const pythonExpr = impression
-                    ? `shell.MANAGER.sub_object('${objectName}').impress('${impression}')`
-                    : `shell.MANAGER.sub_object('${objectName}').impress()`;
-                await execPython(pythonExpr);
+                if (!impression) { return; }
+                await executeAndLog(
+                    `impress ${objectName} ${impression}`,
+                    () => execPython(`shell.MANAGER.sub_object('${escapePythonString(objectName)}').impress('${escapePythonString(impression)}')`)
+                );
+                provider.refresh();
+                vscode.window.showInformationMessage(`Impression created: ${objectName}@${impression}`);
             } catch (error) {
                 const message = error instanceof Error ? error.message : String(error);
                 vscode.window.showErrorMessage(`Celebi: ${message}`);

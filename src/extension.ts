@@ -141,6 +141,21 @@ export function activate(context: vscode.ExtensionContext) {
         })
     );
 
+    // Command to show DITE Messages panel
+    context.subscriptions.push(
+        vscode.commands.registerCommand('celebi.showDiteMessages', async () => {
+            console.log('[DITE] Manually showing DITE Messages panel');
+            console.log('[DITE] messagePanelProvider exists:', !!messagePanelProvider);
+            console.log('[DITE] messageStore history:', messageStore.getHistory().length);
+            try {
+                await vscode.commands.executeCommand('diteMessagePanel.focus');
+                console.log('[DITE] Panel focused successfully');
+            } catch (error) {
+                console.error('[DITE] Failed to focus panel:', error);
+            }
+        })
+    );
+
     // Command to clear messages
     context.subscriptions.push(
         vscode.commands.registerCommand('celebi.clearMessages', () => {

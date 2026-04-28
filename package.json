@@ -253,6 +253,10 @@
         "command": "celebi.clearMessages",
         "title": "Clear DITE Messages",
         "icon": "$(trash)"
+      },
+      {
+        "command": "celebi.showDiteMessages",
+        "title": "Show DITE Messages"
       }
     ],
     "menus": {

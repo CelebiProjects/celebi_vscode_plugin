@@ -25,3 +25,193 @@ export class MessageStore {
     return [...this.messages];
   }
 }
+
+import * as vscode from 'vscode';
+
+export class MessagePanelProvider implements vscode.WebviewViewProvider {
+    public static readonly viewType = 'diteMessagePanel';
+    private view?: vscode.WebviewView;
+    private store: MessageStore;
+
+    constructor(store: MessageStore) {
+        this.store = store;
+    }
+
+    resolveWebviewView(
+        webviewView: vscode.WebviewView,
+        context: vscode.WebviewViewResolveContext,
+        token: vscode.CancellationToken
+    ): void | Thenable<void> {
+        this.view = webviewView;
+        webviewView.webview.options = {
+            enableScripts: true,
+            localResourceRoots: []
+        };
+        this.updateWebview();
+
+        // Handle messages from webview
+        webviewView.webview.onDidReceiveMessage(message => {
+            if (message.command === 'clear') {
+                this.store.clear();
+                this.updateWebview();
+            }
+        });
+    }
+
+    public updateWebview(): void {
+        if (this.view) {
+            this.view.webview.html = this.getHtmlContent();
+        }
+    }
+
+    private getHtmlContent(): string {
+        const messages = this.store.getHistory();
+        const messagesHtml = messages
+            .map(msg => this.renderMessage(msg))
+            .join('');
+
+        return `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DITE Messages</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Courier New', monospace;
+            background: var(--vscode-editor-background);
+            color: var(--vscode-foreground);
+            padding: 8px;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--vscode-panel-border);
+        }
+        .header h2 {
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .clear-btn {
+            padding: 4px 8px;
+            background: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 11px;
+            transition: background 0.2s;
+        }
+        .clear-btn:hover {
+            background: var(--vscode-button-hoverBackground);
+        }
+        .messages-container {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            max-height: calc(100vh - 100px);
+            overflow-y: auto;
+        }
+        .message {
+            border-left: 3px solid var(--vscode-panel-border);
+            padding: 8px 12px;
+            background: var(--vscode-panel-background);
+            border-radius: 3px;
+        }
+        .message.success {
+            border-left-color: #4ec9b0;
+        }
+        .message.error {
+            border-left-color: #f48771;
+        }
+        .command {
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            color: var(--vscode-textLink-foreground);
+            margin-bottom: 4px;
+        }
+        .command::before {
+            content: '$ ';
+            color: var(--vscode-descriptionForeground);
+        }
+        .output {
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            margin-bottom: 4px;
+        }
+        .output.success::before {
+            content: '✓ ';
+            color: #4ec9b0;
+            font-weight: bold;
+        }
+        .output.error::before {
+            content: '✗ ';
+            color: #f48771;
+            font-weight: bold;
+        }
+        .timestamp {
+            font-size: 10px;
+            color: var(--vscode-descriptionForeground);
+            margin-top: 4px;
+        }
+        .empty-state {
+            text-align: center;
+            color: var(--vscode-descriptionForeground);
+            padding: 20px 8px;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h2>DITE Messages</h2>
+        <button class="clear-btn" onclick="clearMessages()">Clear</button>
+    </div>
+    <div class="messages-container">
+        ${messagesHtml || '<div class="empty-state">No messages yet. Run a command to see output here.</div>'}
+    </div>
+    <script>
+        const vscode = acquireVsCodeApi();
+
+        function clearMessages() {
+            vscode.postMessage({ command: 'clear' });
+        }
+    </script>
+</body>
+</html>`;
+    }
+
+    private renderMessage(msg: Message): string {
+        const time = msg.timestamp.toLocaleTimeString();
+        const statusClass = msg.status;
+
+        return `<div class="message ${statusClass}">
+            <div class="command">${this.escapeHtml(msg.command)}</div>
+            <div class="output ${statusClass}">${this.escapeHtml(msg.output)}</div>
+            <div class="timestamp">${time}</div>
+        </div>`;
+    }
+
+    private escapeHtml(text: string): string {
+        const map: { [key: string]: string } = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#039;'
+        };
+        return text.replace(/[&<>"']/g, m => map[m]);
+    }
+}

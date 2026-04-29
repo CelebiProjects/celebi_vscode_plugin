@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { CelebiTreeProvider } from './treeProvider';
+import { CelebiTreeProvider } from './tree/treeProvider';
 import { execPython, execPythonInTerminal, getOutputChannel } from './pythonRunner';
 import { CelebiWebviewProvider } from './webviewProvider';
 import { MessageStore } from './message/messageStore';

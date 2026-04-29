@@ -1,12 +1,8 @@
 import * as vscode from 'vscode';
-import { CelebiTreeItem, CelebiObjectType } from './treeItem';
-import { execPython } from './pythonRunner';
-
-interface SubObject {
-    path: string;
-    type: string;
-    name: string;
-}
+import { CelebiTreeItem, CelebiObjectType } from '../treeItem';
+import { execPython } from '../pythonRunner';
+import { parseSubObjects, mapObjectType, SubObject } from './parser';
+import { getObjectActions } from './objectActions';
 
 export class CelebiTreeProvider implements vscode.TreeDataProvider<CelebiTreeItem> {
 
@@ -30,7 +26,7 @@ export class CelebiTreeProvider implements vscode.TreeDataProvider<CelebiTreeIte
 
         // If expanding an object (task/algorithm/data), show available actions
         if (element.objectType === 'task' || element.objectType === 'algorithm' || element.objectType === 'data') {
-            return await this.getObjectActions(element);
+            return await getObjectActions(element);
         }
 
         return [];
@@ -263,10 +259,10 @@ export class CelebiTreeProvider implements vscode.TreeDataProvider<CelebiTreeIte
             );
 
             // Parse the result which should be a list of tuples
-            const subObjects = this.parseSubObjects(result);
+            const subObjects = parseSubObjects(result);
 
             return subObjects.map(obj => {
-                const type = this.mapObjectType(obj.type);
+                const type = mapObjectType(obj.type);
                 const name = obj.path.split('/').pop() || obj.path;
 
                 // Make all objects expandable to show their actions
@@ -290,122 +286,6 @@ export class CelebiTreeProvider implements vscode.TreeDataProvider<CelebiTreeIte
         } catch (error) {
             return [];
         }
-    }
-
-    private parseSubObjects(result: string): SubObject[] {
-        // Parse Python list of tuples format
-        // e.g., "[('/path/Fit', 'algorithm'), ('/path/Gen', 'algorithm')]"
-        const subObjects: SubObject[] = [];
-
-        try {
-            // Remove brackets and split by '), (' to get individual tuples
-            const cleaned = result.trim().slice(1, -1); // Remove [ and ]
-            if (!cleaned) {
-                return subObjects;
-            }
-
-            const tuples = cleaned.split('), (').map(s => s.replace(/^\(/, '').replace(/\)$/, ''));
-
-            for (const tuple of tuples) {
-                const parts = tuple.split(', ');
-                if (parts.length >= 2) {
-                    const path = parts[0].replace(/['"]/g, '');
-                    const type = parts[1].replace(/['"]/g, '');
-                    const name = path.split('/').pop() || path;
-                    subObjects.push({ path, type, name });
-                }
-            }
-        } catch (e) {
-            console.error('Failed to parse sub-objects:', e);
-        }
-
-        return subObjects;
-    }
-
-    private mapObjectType(type: string): CelebiObjectType {
-        switch (type) {
-            case 'project':
-                return 'project';
-            case 'algorithm':
-                return 'algorithm';
-            case 'task':
-                return 'task';
-            case 'data':
-                return 'data';
-            case 'directory':
-                return 'directory';
-            default:
-                return 'unknown';
-        }
-    }
-
-    private async getObjectActions(object: CelebiTreeItem): Promise<CelebiTreeItem[]> {
-        const groups: CelebiTreeItem[] = [];
-
-        // Calculate relative path from project root for nested objects
-        const projectPath = await execPython('shell.MANAGER.current_object().path');
-        let objectName: string;
-        if (object.objectPath === projectPath) {
-            objectName = '.';
-        } else if (object.objectPath.startsWith(projectPath + '/')) {
-            objectName = object.objectPath.substring(projectPath.length + 1);
-        } else {
-            objectName = object.label;
-        }
-
-        // View group - Status, Tree, List, Jobs
-        const viewGroup = new CelebiTreeItem(
-            'View',
-            'object-view-group',
-            object.objectPath,
-            vscode.TreeItemCollapsibleState.None,
-            {
-                title: 'Status',
-                command: 'celebi.runPythonPackage',
-                arguments: [`shell.MANAGER.sub_object('${objectName}').status()`],
-                tooltip: 'Status'
-            }
-        );
-        viewGroup.iconPath = new vscode.ThemeIcon('preview', new vscode.ThemeColor('icon.foreground'));
-        groups.push(viewGroup);
-
-        // Execute/Actions group - stores object info
-        // Determine primary command based on object type
-        let execCommand: vscode.Command | undefined;
-        if (object.objectType === 'task') {
-            execCommand = {
-                title: 'Submit',
-                command: 'celebi.runPythonPackage',
-                arguments: [`shell.MANAGER.sub_object('${objectName}').submit()`],
-                tooltip: 'Submit'
-            };
-        } else if (object.objectType === 'algorithm') {
-            execCommand = {
-                title: 'Impress',
-                command: 'celebi.runPythonPackage',
-                arguments: [`shell.MANAGER.sub_object('${objectName}').impress()`],
-                tooltip: 'Impress'
-            };
-        } else if (object.objectType === 'data') {
-            execCommand = {
-                title: 'Cat',
-                command: 'celebi.runPythonPackage',
-                arguments: [`shell.MANAGER.sub_object('${objectName}').cat()`],
-                tooltip: 'Cat'
-            };
-        }
-
-        const execGroup = new CelebiTreeItem(
-            object.objectType === 'task' ? 'Execute' : 'Actions',
-            'exec-group',
-            object.objectPath,
-            vscode.TreeItemCollapsibleState.None,
-            execCommand
-        );
-        execGroup.iconPath = new vscode.ThemeIcon('zap', new vscode.ThemeColor('charts.blue'));
-        groups.push(execGroup);
-
-        return groups;
     }
 
     refresh(): void {

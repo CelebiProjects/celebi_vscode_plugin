@@ -142,7 +142,7 @@ export class MessagePanelProvider implements vscode.WebviewViewProvider {
 
     private getHtmlContent(): string {
         const nonce = this.getNonce();
-        const messages = this.store.getHistory();
+        const messages = this.store.getHistory().reverse();
         const messagesHtml = messages
             .map(msg => this.renderMessage(msg))
             .join('');
@@ -171,18 +171,10 @@ export class MessagePanelProvider implements vscode.WebviewViewProvider {
         }
         .header {
             display: flex;
-            justify-content: space-between;
+            justify-content: flex-end;
             align-items: center;
             margin-bottom: 8px;
-            padding-bottom: 8px;
-            border-bottom: 1px solid var(--vscode-panel-border);
             flex-shrink: 0;
-        }
-        .header h2 {
-            font-size: 12px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
         }
         .clear-btn {
             padding: 4px 8px;
@@ -259,8 +251,7 @@ export class MessagePanelProvider implements vscode.WebviewViewProvider {
 </head>
 <body>
     <div class="header">
-        <h2>DITE Messages</h2>
-        <button class="clear-btn" onclick="clearMessages()" aria-label="Clear all messages">Clear</button>
+        <button class="clear-btn" id="clearBtn" aria-label="Clear all messages">Clear</button>
     </div>
     <div class="messages-container">
         ${messagesHtml || '<div class="empty-state">No messages yet. Run a command to see output here.</div>'}
@@ -268,9 +259,9 @@ export class MessagePanelProvider implements vscode.WebviewViewProvider {
     <script nonce="${nonce}">
         const vscode = acquireVsCodeApi();
 
-        function clearMessages() {
+        document.getElementById('clearBtn').addEventListener('click', function() {
             vscode.postMessage({ command: 'clear' });
-        }
+        });
     </script>
 </body>
 </html>`;

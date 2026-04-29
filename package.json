@@ -71,8 +71,9 @@
         },
         {
           "id": "diteMessagePanel",
-          "name": "DITE Messages",
-          "icon": "media/icon.png"
+          "name": "Information",
+          "icon": "media/icon.png",
+          "type": "webview"
         }
       ]
     },

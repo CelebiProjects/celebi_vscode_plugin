@@ -341,7 +341,8 @@ import { MessageStore, MessagePanelProvider } from './messagePanel';
 ```
 to:
 ```typescript
-import { MessageStore, MessagePanelProvider } from './message/messagePanel';
+import { MessageStore } from './message/messageStore';
+import { MessagePanelProvider } from './message/messagePanel';
 ```
 
 - [ ] **Step 3: Compile to verify**
@@ -1942,7 +1943,8 @@ import * as path from 'path';
 import { CelebiTreeProvider } from './tree/treeProvider';
 import { execPython, getOutputChannel } from './pythonRunner';
 import { CelebiWebviewProvider } from './webview';
-import { MessageStore, MessagePanelProvider } from './message/messagePanel';
+import { MessageStore } from './message/messageStore';
+import { MessagePanelProvider } from './message/messagePanel';
 import { registerCommands } from './commands';
 
 export function activate(context: vscode.ExtensionContext) {

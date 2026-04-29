@@ -3,8 +3,8 @@ import * as path from 'path';
 import { CelebiTreeProvider } from './treeProvider';
 import { execPython, execPythonInTerminal, getOutputChannel } from './pythonRunner';
 import { CelebiWebviewProvider } from './webviewProvider';
-import { MessageStore, MessagePanelProvider } from './message/messagePanel';
-import { Message } from './message/messageStore';
+import { MessageStore } from './message/messageStore';
+import { MessagePanelProvider } from './message/messagePanel';
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('[DITE] Extension activating...');
@@ -168,7 +168,7 @@ export function activate(context: vscode.ExtensionContext) {
                 // Generate HTML content
                 const messages = messageStore.getHistory();
                 const messagesHtml = messages.length > 0
-                    ? messages.map((msg: Message) => `
+                    ? messages.map((msg) => `
                         <div style="border-left: 3px solid ${msg.status === 'success' ? '#4ec9b0' : '#f48771'}; padding: 8px 12px; margin-bottom: 12px; background: var(--vscode-panel-background);">
                             <div style="font-family: monospace; font-size: 12px; color: var(--vscode-textLink-foreground); margin-bottom: 4px;">$ ${msg.command}</div>
                             <div style="font-family: monospace; font-size: 12px; white-space: pre-wrap;">${msg.status === 'success' ? '✓' : '✗'} ${msg.output}</div>

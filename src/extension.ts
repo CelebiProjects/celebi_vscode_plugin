@@ -3,7 +3,7 @@ import * as path from 'path';
 import { CelebiTreeProvider } from './treeProvider';
 import { execPython, execPythonInTerminal, getOutputChannel } from './pythonRunner';
 import { CelebiWebviewProvider } from './webviewProvider';
-import { MessageStore, MessagePanelProvider } from './messagePanel';
+import { MessageStore, MessagePanelProvider } from './message/messagePanel';
 import { Message } from './message/messageStore';
 
 export function activate(context: vscode.ExtensionContext) {

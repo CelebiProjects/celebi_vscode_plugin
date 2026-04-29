@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
-import { Message, MessageStore } from './message/messageStore';
-export { Message, MessageStore } from './message/messageStore';
-import { getHtmlContent } from './message/messageHtml';
+import { Message, MessageStore } from './messageStore';
+export { Message, MessageStore } from './messageStore';
+import { getHtmlContent } from './messageHtml';
 
 export class MessagePanelProvider implements vscode.WebviewViewProvider {
     public static readonly viewType = 'diteMessagePanel';

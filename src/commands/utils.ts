@@ -58,6 +58,59 @@ export async function getObjectNameFromArg(arg: unknown): Promise<{ objectName: 
     return { objectName: '.', title: 'Current Directory' };
 }
 
+export function registerSimpleCommand(
+    context: vscode.ExtensionContext,
+    commandId: string,
+    label: string,
+    handler: () => Promise<string>,
+    loggers: { messageStore: MessageStore; messagePanelProvider: MessagePanelProvider },
+    options?: { onSuccess?: () => void; silent?: boolean }
+): void {
+    context.subscriptions.push(
+        vscode.commands.registerCommand(commandId, async () => {
+            try {
+                const result = await executeAndLog(loggers.messageStore, loggers.messagePanelProvider, label, handler);
+                options?.onSuccess?.();
+                return result;
+            } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                vscode.window.showErrorMessage(`Celebi: ${message}`);
+            }
+        })
+    );
+}
+
+export function registerObjectAction(
+    context: vscode.ExtensionContext,
+    commandId: string,
+    label: string,
+    pythonMethodExpr: (objectName: string) => string,
+    loggers: { messageStore: MessageStore; messagePanelProvider: MessagePanelProvider },
+    options?: { onSuccess?: () => void; showInfo?: string }
+): void {
+    context.subscriptions.push(
+        vscode.commands.registerCommand(commandId, async (treeItem?: { objectPath: string }) => {
+            if (!treeItem) return;
+            try {
+                const { objectName } = await getObjectNameFromArg(treeItem);
+                const result = await executeAndLog(
+                    loggers.messageStore, loggers.messagePanelProvider,
+                    `${label} ${objectName}`,
+                    () => execPython(pythonMethodExpr(escapePythonString(objectName)))
+                );
+                options?.onSuccess?.();
+                if (options?.showInfo) {
+                    vscode.window.showInformationMessage(options.showInfo.replace('{name}', objectName));
+                }
+                return result;
+            } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                vscode.window.showErrorMessage(`Celebi: ${message}`);
+            }
+        })
+    );
+}
+
 export function parseOutputFiles(result: string): string[] {
     try {
         const match = result.match(/\[([^\]]*)\]/);

@@ -7,15 +7,11 @@ import { MessagePanelProvider } from './message/messagePanel';
 import { registerCommands } from './commands';
 
 export function activate(context: vscode.ExtensionContext) {
-    console.log('[DITE] Extension activating...');
-
     const outputChannel = getOutputChannel();
     context.subscriptions.push(outputChannel);
 
     const messageStore = new MessageStore();
-    console.log('[DITE] MessageStore created');
     const messagePanelProvider = new MessagePanelProvider(messageStore);
-    console.log('[DITE] MessagePanelProvider created');
 
     try {
         context.subscriptions.push(
@@ -29,9 +25,8 @@ export function activate(context: vscode.ExtensionContext) {
                 }
             )
         );
-        console.log('[DITE] WebviewViewProvider registered successfully');
     } catch (error) {
-        console.error('[DITE] Failed to register WebviewViewProvider:', error);
+        console.error('Failed to register WebviewViewProvider:', error);
     }
     context.subscriptions.push(messagePanelProvider);
 

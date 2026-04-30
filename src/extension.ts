@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { CelebiTreeProvider } from './tree/treeProvider';
 import { execPython, execPythonInTerminal, getOutputChannel } from './pythonRunner';
-import { CelebiWebviewProvider } from './webviewProvider';
+import { CelebiWebviewProvider } from './webview';
 import { MessageStore } from './message/messageStore';
 import { MessagePanelProvider } from './message/messagePanel';
 

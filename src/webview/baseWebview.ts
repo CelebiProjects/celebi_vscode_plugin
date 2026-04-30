@@ -1,3 +1,8 @@
+/**
+ * Shared webview utilities used by trace/ls/browser modules.
+ */
+
+/** Escape special HTML characters to prevent XSS. */
 export function escapeHtml(text: string): string {
     return text
         .replace(/&/g, '&amp;')
@@ -6,6 +11,7 @@ export function escapeHtml(text: string): string {
         .replace(/"/g, '&quot;');
 }
 
+/** Standard error page shown when a webview action fails. */
 export function getErrorHtml(message: string): string {
     return `<!DOCTYPE html>
 <html>

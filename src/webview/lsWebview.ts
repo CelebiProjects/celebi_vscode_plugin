@@ -1,3 +1,8 @@
+/**
+ * Directory listing webview.
+ *
+ * Renders the output of a CelebiChrono shell ls() call as an HTML page.
+ */
 import * as vscode from 'vscode';
 import { escapeHtml } from './baseWebview';
 
@@ -8,8 +13,7 @@ export async function showLsView(title: string, lsData: string) {
         panel.reveal();
     } else {
         panel = vscode.window.createWebviewPanel(
-            'celebiLs',
-            'Celebi LS',
+            'celebiLs', 'Celebi LS',
             vscode.ViewColumn.One,
             { enableScripts: true }
         );

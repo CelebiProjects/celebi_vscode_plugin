@@ -1,3 +1,11 @@
+/**
+ * Parsing helpers for CelebiChrono Python API results.
+ *
+ * parseSubObjects: converts Python list-of-tuples output into
+ * typed SubObject records.
+ *
+ * mapObjectType: normalizes raw type strings to CelebiObjectType enum values.
+ */
 import { CelebiObjectType } from '../treeItem';
 
 export interface SubObject {
@@ -6,6 +14,11 @@ export interface SubObject {
     name: string;
 }
 
+/**
+ * Parse Python list of tuples format.
+ * Input:  "[('/path/Fit', 'algorithm'), ('/path/Gen', 'algorithm')]"
+ * Output: [{ path: '/path/Fit', type: 'algorithm', name: 'Fit' }, ...]
+ */
 export function parseSubObjects(result: string): SubObject[] {
     const subObjects: SubObject[] = [];
 
@@ -33,19 +46,14 @@ export function parseSubObjects(result: string): SubObject[] {
     return subObjects;
 }
 
+/** Convert a raw Python object type string into our typed enum. */
 export function mapObjectType(type: string): CelebiObjectType {
     switch (type) {
-        case 'project':
-            return 'project';
-        case 'algorithm':
-            return 'algorithm';
-        case 'task':
-            return 'task';
-        case 'data':
-            return 'data';
-        case 'directory':
-            return 'directory';
-        default:
-            return 'unknown';
+        case 'project':   return 'project';
+        case 'algorithm': return 'algorithm';
+        case 'task':      return 'task';
+        case 'data':      return 'data';
+        case 'directory': return 'directory';
+        default:          return 'unknown';
     }
 }

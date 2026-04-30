@@ -1,9 +1,22 @@
+/**
+ * Object creation and removal commands.
+ *
+ * createTask / createAlgorithm / createDirectory prompt for a name then
+ * invoke the matching shell.mk* Python function.
+ *
+ * removeObject requires two confirmations (modal warning + type "REMOVE")
+ * before deleting.
+ *
+ * viewResults tries to open an HTML view (impview) for a task; if none,
+ * falls back to a file picker for output files.
+ */
 import * as vscode from 'vscode';
 import { CommandDependencies } from './index';
 import { getObjectNameFromArg, parseOutputFiles } from './utils';
 import { execPython } from '../pythonRunner';
 
 export function registerCreationCommands(context: vscode.ExtensionContext, deps: CommandDependencies): void {
+    // ---- createTask ----
     context.subscriptions.push(
         vscode.commands.registerCommand('celebi.createTask', async (parentPathArg?: string) => {
             const parentPath = parentPathArg || '.';
@@ -26,6 +39,7 @@ export function registerCreationCommands(context: vscode.ExtensionContext, deps:
         })
     );
 
+    // ---- createAlgorithm ----
     context.subscriptions.push(
         vscode.commands.registerCommand('celebi.createAlgorithm', async (parentPathArg?: string) => {
             const parentPath = parentPathArg || '.';
@@ -48,6 +62,7 @@ export function registerCreationCommands(context: vscode.ExtensionContext, deps:
         })
     );
 
+    // ---- createDirectory ----
     context.subscriptions.push(
         vscode.commands.registerCommand('celebi.createDirectory', async (parentPathArg?: string) => {
             const parentPath = parentPathArg || '.';
@@ -70,6 +85,7 @@ export function registerCreationCommands(context: vscode.ExtensionContext, deps:
         })
     );
 
+    // ---- removeObject (double confirmation) ----
     context.subscriptions.push(
         vscode.commands.registerCommand('celebi.removeObject', async (arg1?: string | { objectPath: string; objectType?: string }, arg2?: string) => {
             let targetName: string;
@@ -88,6 +104,7 @@ export function registerCreationCommands(context: vscode.ExtensionContext, deps:
                 targetType = 'project';
             }
 
+            // First: modal warning
             const confirm = await vscode.window.showWarningMessage(
                 `Are you sure you want to REMOVE this ${targetType}?\n\n"${targetName}"\n\nThis action CANNOT be undone and may delete files permanently!`,
                 { modal: true },
@@ -99,6 +116,7 @@ export function registerCreationCommands(context: vscode.ExtensionContext, deps:
                 return;
             }
 
+            // Second: type REMOVE to confirm
             const confirm2 = await vscode.window.showInputBox({
                 prompt: `Type "REMOVE" to confirm deletion of ${targetType} "${targetName}"`,
                 placeHolder: 'Type REMOVE'
@@ -120,6 +138,7 @@ export function registerCreationCommands(context: vscode.ExtensionContext, deps:
         })
     );
 
+    // ---- viewResults (HTML impview or file picker) ----
     context.subscriptions.push(
         vscode.commands.registerCommand('celebi.viewResults', async (arg?: string | { objectPath: string }) => {
             try {
@@ -133,6 +152,7 @@ export function registerCreationCommands(context: vscode.ExtensionContext, deps:
                     objectName = '.';
                 }
 
+                // Try to open HTML view first
                 const urlResult = await execPython(`shell.MANAGER.sub_object('${objectName}').impview()`);
 
                 if (urlResult && urlResult.startsWith('http')) {
@@ -140,6 +160,7 @@ export function registerCreationCommands(context: vscode.ExtensionContext, deps:
                     return;
                 }
 
+                // Fallback: pick an output file
                 const filesResult = await execPython(`shell.MANAGER.sub_object('${objectName}').list_output_files()`);
                 const files = parseOutputFiles(filesResult);
 

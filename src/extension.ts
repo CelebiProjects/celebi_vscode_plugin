@@ -1,3 +1,10 @@
+/**
+ * Celebi VS Code Extension — entry point.
+ *
+ * Wiring: creates providers, registers tree/webview/message infrastructure,
+ * sets up file watchers and status bar, then delegates all command registration
+ * to commands/registerCommands().
+ */
 import * as vscode from 'vscode';
 import { CelebiTreeProvider } from './tree/treeProvider';
 import { execPython, getOutputChannel } from './pythonRunner';
@@ -7,9 +14,11 @@ import { MessagePanelProvider } from './message/messagePanel';
 import { registerCommands } from './commands';
 
 export function activate(context: vscode.ExtensionContext) {
+    // -- Output channel --
     const outputChannel = getOutputChannel();
     context.subscriptions.push(outputChannel);
 
+    // -- Message store & panel --
     const messageStore = new MessageStore();
     const messagePanelProvider = new MessagePanelProvider(messageStore);
 
@@ -18,11 +27,7 @@ export function activate(context: vscode.ExtensionContext) {
             vscode.window.registerWebviewViewProvider(
                 MessagePanelProvider.viewType,
                 messagePanelProvider,
-                {
-                    webviewOptions: {
-                        retainContextWhenHidden: true
-                    }
-                }
+                { webviewOptions: { retainContextWhenHidden: true } }
             )
         );
     } catch (error) {
@@ -30,13 +35,16 @@ export function activate(context: vscode.ExtensionContext) {
     }
     context.subscriptions.push(messagePanelProvider);
 
+    // -- Tree provider --
     const provider = new CelebiTreeProvider();
     context.subscriptions.push(
         vscode.window.registerTreeDataProvider('celebiTreeView', provider)
     );
 
+    // -- Webview provider --
     const webviewProvider = new CelebiWebviewProvider();
 
+    // -- Status bar --
     const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
     statusBarItem.command = 'celebi.showOutput';
     context.subscriptions.push(statusBarItem);
@@ -55,6 +63,7 @@ export function activate(context: vscode.ExtensionContext) {
     }
     updateStatusBar();
 
+    // -- File watchers (auto-refresh tree) --
     const config = vscode.workspace.getConfiguration('celebi');
     const projectPath = config.get<string>('projectPath', '') ||
                         vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
@@ -76,6 +85,7 @@ export function activate(context: vscode.ExtensionContext) {
         context.subscriptions.push(impressWatcher);
     }
 
+    // -- Register all commands --
     registerCommands(context, {
         provider,
         webviewProvider,
@@ -85,6 +95,7 @@ export function activate(context: vscode.ExtensionContext) {
         updateStatusBar
     });
 
+    // -- SCM provider (placeholder for git integration) --
     const scm = vscode.scm.createSourceControl('celebi', 'Celebi');
     context.subscriptions.push(scm);
 }

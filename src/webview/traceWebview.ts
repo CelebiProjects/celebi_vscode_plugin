@@ -1,3 +1,9 @@
+/**
+ * Trace / dependency DAG visualization webview.
+ *
+ * Runs shell.tree() in the CelebiChrono Python API and renders the
+ * resulting tree data as an HTML page.
+ */
 import * as vscode from 'vscode';
 import { execPython } from '../pythonRunner';
 import { escapeHtml, getErrorHtml } from './baseWebview';
@@ -9,8 +15,7 @@ export async function showTraceView(objectName?: string) {
         panel.reveal();
     } else {
         panel = vscode.window.createWebviewPanel(
-            'celebiTrace',
-            'Celebi Trace',
+            'celebiTrace', 'Celebi Trace',
             vscode.ViewColumn.One,
             { enableScripts: true }
         );
@@ -68,7 +73,7 @@ function getTraceHtml(treeData: string): string {
     </style>
 </head>
 <body>
-    <h1>📁 Project Tree</h1>
+    <h1>\u{1F4C1} Project Tree</h1>
     <div class="tree-container">
         <pre>${escapedTree}</pre>
     </div>

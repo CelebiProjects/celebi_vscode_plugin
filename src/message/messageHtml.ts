@@ -1,5 +1,14 @@
+/**
+ * HTML generation for the DITE Messages panel.
+ *
+ * Exports:
+ *  - getHtmlContent: builds the full panel HTML with message history
+ *  - getNonce: generates a CSP nonce for inline scripts
+ */
+
 import { Message } from './messageStore';
 
+/** Generate a random nonce for Content-Security-Policy. */
 export function getNonce(): string {
   let text = '';
   const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -9,6 +18,7 @@ export function getNonce(): string {
   return text;
 }
 
+/** Build the full DITE Messages panel HTML from the message history. */
 export function getHtmlContent(messages: Message[]): string {
   const nonce = getNonce();
   const reversedMessages = [...messages].reverse();

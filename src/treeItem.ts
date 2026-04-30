@@ -1,6 +1,17 @@
+/**
+ * Celebi tree item — a single node in the sidebar activity tree.
+ *
+ * Each item has a label, an object type (which controls icon and
+ * context menu behavior), an optional filesystem path, and an
+ * optional VS Code command that fires on click.
+ */
 import * as vscode from 'vscode';
 
-export type CelebiObjectType = 'project' | 'algorithm' | 'task' | 'data' | 'directory' | 'action' | 'separator' | 'unknown' | 'view-group' | 'actions-group' | 'git-group' | 'info-group' | 'exec-group' | 'object-view-group';
+/** All recognised Celebi object types — used for icon selection and filtering. */
+export type CelebiObjectType = 'project' | 'algorithm' | 'task' | 'data' | 'directory'
+    | 'action' | 'separator' | 'unknown'
+    | 'view-group' | 'actions-group' | 'git-group' | 'info-group'
+    | 'exec-group' | 'object-view-group';
 
 export class CelebiTreeItem extends vscode.TreeItem {
     children?: CelebiTreeItem[];
@@ -14,16 +25,12 @@ export class CelebiTreeItem extends vscode.TreeItem {
     ) {
         super(label, collapsibleState);
 
-        // Set icon based on object type
         this.iconPath = this.getIconForType(objectType);
-
-        // Set context value for conditional commands
         this.contextValue = objectType;
-
-        // Set tooltip
         this.tooltip = `${this.label} (${objectType})`;
     }
 
+    /** Map object type to the appropriate VS Code theme icon. */
     private getIconForType(type: CelebiObjectType): vscode.ThemeIcon {
         switch (type) {
             case 'project':

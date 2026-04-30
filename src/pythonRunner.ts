@@ -1,8 +1,22 @@
+/**
+ * Python integration layer.
+ *
+ * Executes Python expressions through the CelebiChrono shell interface.
+ * Handles virtualenv detection, Python path resolution, and code generation
+ * for both single-line (-c) and multi-line (temp file) execution modes.
+ *
+ * Exports:
+ *  - execPython(expr): run a Python expression, return stdout
+ *  - execPythonInTerminal(expr): run in the VS Code integrated terminal
+ *  - getOutputChannel(): lazily-initialized Celebi output channel
+ */
 import { exec } from 'child_process';
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+
+// ---- Output channel ----
 
 let outputChannel: vscode.OutputChannel | undefined;
 
@@ -13,6 +27,12 @@ export function getOutputChannel(): vscode.OutputChannel {
     return outputChannel;
 }
 
+// ---- Virtualenv detection ----
+
+/**
+ * Find the Python virtualenv path.
+ * Checks the configured path first, then scans common directory names.
+ */
 function findVirtualenv(projectPath: string | undefined): string | undefined {
     const config = vscode.workspace.getConfiguration('celebi');
     const configuredVenv = config.get<string>('virtualenvPath', '');
@@ -24,7 +44,6 @@ function findVirtualenv(projectPath: string | undefined): string | undefined {
         return undefined;
     }
 
-    // Common virtualenv directory names
     const venvNames = ['.venv', 'venv', 'env', '.env', 'virtualenv'];
 
     for (const name of venvNames) {
@@ -37,6 +56,13 @@ function findVirtualenv(projectPath: string | undefined): string | undefined {
     return undefined;
 }
 
+// ---- Python path resolution ----
+
+/**
+ * Determine the Python executable path.
+ * Uses the configured pythonPath, or resolves from the virtualenv's
+ * bin/Scripts directory, or falls back to 'python' on PATH.
+ */
 function getPythonPath(venvPath: string | undefined): string {
     const config = vscode.workspace.getConfiguration('celebi');
     const configuredPython = config.get<string>('pythonPath', '');
@@ -46,11 +72,8 @@ function getPythonPath(venvPath: string | undefined): string {
     }
 
     if (venvPath) {
-        // Determine the Python executable path based on platform
         const isWindows = process.platform === 'win32';
         const pythonExe = isWindows ? 'python.exe' : 'python';
-
-        // Try Scripts/bin directory (standard venv structure)
         const scriptsDir = isWindows ? 'Scripts' : 'bin';
         const venvPython = path.join(venvPath, scriptsDir, pythonExe);
 
@@ -62,10 +85,16 @@ function getPythonPath(venvPath: string | undefined): string {
     return 'python';
 }
 
+// ---- Code generation ----
+
+/**
+ * Build a Python script from a CelebiChrono shell expression.
+ *
+ * For single-line expressions, uses semicolons for compact -c execution.
+ * For multi-line code, returns a proper script (saved to temp file).
+ */
 function buildPythonCode(pythonExpr: string, packagePath: string): string {
-    // Check if expression contains newlines (multi-line code)
     if (pythonExpr.includes('\n')) {
-        // Multi-line code - wrap it properly
         const lines: string[] = [];
         if (packagePath) {
             lines.push(`import sys`);
@@ -77,7 +106,6 @@ function buildPythonCode(pythonExpr: string, packagePath: string): string {
         return lines.join('\n');
     }
 
-    // Single line expression - use semicolons for compactness
     const lines: string[] = [];
     if (packagePath) {
         lines.push(`import sys`);
@@ -89,6 +117,14 @@ function buildPythonCode(pythonExpr: string, packagePath: string): string {
     return lines.join('; ');
 }
 
+// ---- Public API ----
+
+/**
+ * Execute a Python expression via CelebiChrono and return the stdout result.
+ *
+ * Handles virtualenv activation, temp file management for multi-line code,
+ * and writes execution output to the Celebi output channel.
+ */
 export function execPython(pythonExpr: string): Promise<string> {
     const config = vscode.workspace.getConfiguration('celebi');
     const packagePath = config.get<string>('packagePath', '');
@@ -103,21 +139,17 @@ export function execPython(pythonExpr: string): Promise<string> {
         let tmpFile: string | undefined;
 
         if (pythonExpr.includes('\n')) {
-            // Multi-line code: write to temp file and execute
             tmpFile = path.join(os.tmpdir(), `celebi_${Date.now()}.py`);
             fs.writeFileSync(tmpFile, code);
             command = `"${pythonPath}" "${tmpFile}"`;
         } else {
-            // Single line: use -c
             const escapedCode = code.replace(/"/g, '\\"');
             command = `"${pythonPath}" -c "${escapedCode}"`;
         }
 
         const env = { ...process.env };
         if (venvPath) {
-            // Set VIRTUAL_ENV to help Python recognize the virtualenv
             env.VIRTUAL_ENV = venvPath;
-            // Prepend venv's bin/Scripts to PATH
             const isWindows = process.platform === 'win32';
             const scriptsDir = isWindows ? 'Scripts' : 'bin';
             const venvBin = path.join(venvPath, scriptsDir);
@@ -125,13 +157,9 @@ export function execPython(pythonExpr: string): Promise<string> {
         }
 
         exec(command, { cwd: projectPath, env }, (error, stdout, stderr) => {
-            // Clean up temp file if used
+            // Clean up temp file
             if (tmpFile && fs.existsSync(tmpFile)) {
-                try {
-                    fs.unlinkSync(tmpFile);
-                } catch {
-                    // Ignore cleanup errors
-                }
+                try { fs.unlinkSync(tmpFile); } catch { /* ignore */ }
             }
 
             const output = getOutputChannel();
@@ -159,6 +187,10 @@ export function execPython(pythonExpr: string): Promise<string> {
     });
 }
 
+/**
+ * Execute a Python expression in the VS Code integrated terminal.
+ * Uses a dedicated "Celebi Python" terminal (shared across calls).
+ */
 export function execPythonInTerminal(pythonExpr: string) {
     const config = vscode.workspace.getConfiguration('celebi');
     const packagePath = config.get<string>('packagePath', '');
@@ -168,14 +200,13 @@ export function execPythonInTerminal(pythonExpr: string) {
 
     const code = buildPythonCode(pythonExpr, packagePath);
 
-    // Check if there's already a Celebi terminal
     let terminal = vscode.window.terminals.find(t => t.name === 'Celebi Python');
     if (!terminal) {
         terminal = vscode.window.createTerminal('Celebi Python');
     }
     terminal.show();
 
-    // If using a virtualenv, activate it first
+    // Activate virtualenv if present
     if (venvPath) {
         const isWindows = process.platform === 'win32';
         const activateScript = isWindows
@@ -195,6 +226,9 @@ export function execPythonInTerminal(pythonExpr: string) {
     terminal.sendText(`${pythonPath} -c "${escapedCode}"`);
 }
 
+// ---- Helpers ----
+
+/** Resolve the project root path from config or workspace folders. */
 function getProjectPath(): string | undefined {
     const config = vscode.workspace.getConfiguration('celebi');
     const configuredPath = config.get<string>('projectPath', '');

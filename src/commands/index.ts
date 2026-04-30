@@ -1,3 +1,9 @@
+/**
+ * Command registration entry point.
+ *
+ * Wires all three command groups (global, object, creation) into the
+ * extension context. Each group receives the shared CommandDependencies.
+ */
 import * as vscode from 'vscode';
 import { CelebiTreeProvider } from '../tree/treeProvider';
 import { CelebiWebviewProvider } from '../webview';
@@ -6,6 +12,7 @@ import { registerGlobalCommands } from './globalCommands';
 import { registerObjectCommands } from './objectCommands';
 import { registerCreationCommands } from './creationCommands';
 
+/** Shared dependencies injected into every command handler. */
 export interface CommandDependencies {
     provider: CelebiTreeProvider;
     webviewProvider: CelebiWebviewProvider;

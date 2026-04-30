@@ -1,3 +1,10 @@
+/**
+ * Tree object-level commands (triggered from object context menus).
+ *
+ * Most commands follow the same pattern: guard treeItem, resolve object name
+ * from the project root, run a Python shell method, and log the result.
+ * registerObjectAction() handles that boilerplate.
+ */
 import * as vscode from 'vscode';
 import { CommandDependencies } from './index';
 import { executeAndLog, escapePythonString, getObjectNameFromArg, parseOutputFiles, registerObjectAction } from './utils';
@@ -6,6 +13,7 @@ import { execPython } from '../pythonRunner';
 export function registerObjectCommands(context: vscode.ExtensionContext, deps: CommandDependencies): void {
     const log = { messageStore: deps.messageStore, messagePanelProvider: deps.messagePanelProvider };
 
+    // ---- Simple object actions (all follow the same pattern) ----
     registerObjectAction(context, 'celebi.objectStatus',    'status',       n => `shell.MANAGER.sub_object('${n}').status()`,             log);
     registerObjectAction(context, 'celebi.objectTree',      'tree',         n => `shell.MANAGER.sub_object('${n}').tree()`,               log);
     registerObjectAction(context, 'celebi.objectJobs',      'jobs',         n => `shell.MANAGER.sub_object('${n}').jobs()`,               log);
@@ -18,17 +26,19 @@ export function registerObjectCommands(context: vscode.ExtensionContext, deps: C
     registerObjectAction(context, 'celebi.objectSuc',       'successors',   n => `shell.MANAGER.sub_object('${n}').show_successors()`,    log);
     registerObjectAction(context, 'celebi.objectCat',       'cat',          n => `shell.MANAGER.sub_object('${n}').cat()`,                log);
 
-    // objectResults: show browser view or file picker
+    // ---- objectResults: show browser view or file picker ----
     context.subscriptions.push(
         vscode.commands.registerCommand('celebi.objectResults', async (treeItem?: { objectPath: string }) => {
             if (!treeItem) return;
             try {
                 const { objectName } = await getObjectNameFromArg(treeItem);
+                // Try to open an HTML view (impview) first
                 const urlResult = await execPython(`shell.MANAGER.sub_object('${objectName}').impview()`);
                 if (urlResult && urlResult.startsWith('http')) {
                     await deps.webviewProvider.showBrowser(objectName, urlResult);
                     return;
                 }
+                // Fallback: list output files and let the user pick one
                 const filesResult = await execPython(`shell.MANAGER.sub_object('${objectName}').list_output_files()`);
                 const files = parseOutputFiles(filesResult);
                 if (files.length === 0) {
@@ -48,7 +58,7 @@ export function registerObjectCommands(context: vscode.ExtensionContext, deps: C
         })
     );
 
-    // objectImpress: requires input box
+    // ---- objectImpress: needs an impression name from the user ----
     context.subscriptions.push(
         vscode.commands.registerCommand('celebi.objectImpress', async (treeItem?: { objectPath: string }) => {
             if (!treeItem) return;

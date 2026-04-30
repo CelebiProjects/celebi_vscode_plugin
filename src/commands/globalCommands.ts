@@ -1,3 +1,10 @@
+/**
+ * Project-level commands that don't target a specific tree object.
+ *
+ * Includes: runPythonPackage, submit, impress, switchProject,
+ * execute, showStatus / showTree / showJobs / showLs,
+ * gitStatus, gitHistory, DITE status/messages, and utilities.
+ */
 import * as vscode from 'vscode';
 import { CommandDependencies } from './index';
 import { executeAndLog, escapePythonString, getObjectNameFromArg, registerSimpleCommand } from './utils';
@@ -6,7 +13,8 @@ import { execPython, execPythonInTerminal } from '../pythonRunner';
 export function registerGlobalCommands(context: vscode.ExtensionContext, deps: CommandDependencies): void {
     const log = { messageStore: deps.messageStore, messagePanelProvider: deps.messagePanelProvider };
 
-    // --- Inline commands (no logging) ---
+    // ---- Trivial commands (no logging) ----
+
     context.subscriptions.push(
         vscode.commands.registerCommand('celebi.runPythonPackage', async (pythonExpr: string) => {
             try {
@@ -45,7 +53,8 @@ export function registerGlobalCommands(context: vscode.ExtensionContext, deps: C
         })
     );
 
-    // --- Simple exec commands ---
+    // ---- Simple exec+log commands (via registerSimpleCommand) ----
+
     registerSimpleCommand(context, 'celebi.showStatus', 'show status',
         () => execPython('shell.status()'), log);
     registerSimpleCommand(context, 'celebi.showTree',   'show tree',
@@ -57,7 +66,8 @@ export function registerGlobalCommands(context: vscode.ExtensionContext, deps: C
         () => execPython('shell.MANAGER.current_object().printed_dite_status()'), log,
         { onSuccess: () => deps.provider.refresh() });
 
-    // --- Git commands ---
+    // ---- Git commands ----
+
     context.subscriptions.push(
         vscode.commands.registerCommand('celebi.gitStatus', async () => {
             try { await execPython('shell.changes()'); }
@@ -78,7 +88,8 @@ export function registerGlobalCommands(context: vscode.ExtensionContext, deps: C
         })
     );
 
-    // --- Commands with input dialogs ---
+    // ---- Commands with input dialogs ----
+
     context.subscriptions.push(
         vscode.commands.registerCommand('celebi.openObject', async (objectPath: string) => {
             try {
@@ -204,7 +215,8 @@ export function registerGlobalCommands(context: vscode.ExtensionContext, deps: C
         })
     );
 
-    // --- DITE Messages panel ---
+    // ---- DITE Messages panel (inline HTML fallback) ----
+
     context.subscriptions.push(
         vscode.commands.registerCommand('celebi.showDiteMessages', async () => {
             try {

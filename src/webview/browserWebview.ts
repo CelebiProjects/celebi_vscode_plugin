@@ -1,3 +1,10 @@
+/**
+ * Embedded browser webview.
+ *
+ * Opens a URL (usually from CelebiChrono's impview) in an <iframe>
+ * inside a VS Code webview panel.  Includes toolbar buttons for
+ * opening in an external browser and reloading the frame.
+ */
 import * as vscode from 'vscode';
 
 let panel: vscode.WebviewPanel | undefined;
@@ -24,6 +31,7 @@ export async function showBrowser(objectName: string, url: string) {
             panel = undefined;
         });
 
+        // Forward "open in external browser" requests from the webview
         panel.webview.onDidReceiveMessage(
             message => {
                 switch (message.command) {

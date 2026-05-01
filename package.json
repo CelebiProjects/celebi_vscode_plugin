@@ -29,7 +29,7 @@
   },
   "contributes": {
     "configuration": {
-      "title": "Celebi",
+      "title": "Repository",
       "properties": {
         "celebi.pythonPath": {
           "type": "string",
@@ -50,6 +50,37 @@
           "type": "string",
           "default": "",
           "description": "Optional: Default Celebi project path"
+        },
+        "celebi.servers": {
+          "type": "object",
+          "default": {},
+          "description": "Named server profiles for quick switching between local and remote CelebiChrono instances.",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "host": {
+                "type": "string",
+                "description": "SSH host (e.g., user@hostname). If set, commands run remotely."
+              },
+              "pythonPath": {
+                "type": "string",
+                "description": "Path to Python interpreter on this server."
+              },
+              "virtualenvPath": {
+                "type": "string",
+                "description": "Path to virtualenv on this server."
+              },
+              "packagePath": {
+                "type": "string",
+                "description": "Path to CelebiChrono package on this server."
+              }
+            }
+          }
+        },
+        "celebi.activeServer": {
+          "type": "string",
+          "default": "",
+          "description": "Name of the currently active server profile (from celebi.servers). Set by the Switch Server command."
         }
       }
     },
@@ -65,15 +96,15 @@
     "views": {
       "celebiViewContainer": [
         {
-          "id": "celebiTreeView",
-          "name": "Celebi",
-          "icon": "media/icon.png"
-        },
-        {
           "id": "diteMessagePanel",
           "name": "Information",
           "icon": "media/icon.png",
           "type": "webview"
+        },
+        {
+          "id": "celebiTreeView",
+          "name": "Celebi",
+          "icon": "media/icon.png"
         }
       ]
     },
@@ -124,6 +155,11 @@
         "command": "celebi.execute",
         "title": "Execute Shell Command",
         "icon": "$(terminal)"
+      },
+      {
+        "command": "celebi.switchServer",
+        "title": "Switch Server",
+        "icon": "$(server)"
       },
       {
         "command": "celebi.showTrace",

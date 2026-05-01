@@ -7,7 +7,7 @@
  */
 import * as vscode from 'vscode';
 import { CelebiTreeProvider } from './tree/treeProvider';
-import { execPython, getOutputChannel } from './pythonRunner';
+import { execPython, getOutputChannel, resolveServerProfile } from './pythonRunner';
 import { CelebiWebviewProvider } from './webview';
 import { MessageStore } from './message/messageStore';
 import { MessagePanelProvider } from './message/messagePanel';
@@ -52,11 +52,15 @@ export function activate(context: vscode.ExtensionContext) {
     async function updateStatusBar() {
         try {
             const projectName = await execPython('shell.MANAGER.get_current_project()');
-            statusBarItem.text = `$(project) Celebi: ${projectName}`;
-            statusBarItem.tooltip = `Current Celebi project: ${projectName}`;
+            const server = resolveServerProfile();
+            const serverSuffix = server ? ` [${server.name}]` : '';
+            statusBarItem.text = `$(project) Celebi: ${projectName}${serverSuffix}`;
+            statusBarItem.tooltip = `Current Celebi project: ${projectName}${server ? ` (server: ${server.name}${server.profile.host ? ' via ssh' : ''})` : ''}`;
             statusBarItem.show();
         } catch {
-            statusBarItem.text = `$(project) Celebi: No project`;
+            const server = resolveServerProfile();
+            const serverSuffix = server ? ` [${server.name}]` : '';
+            statusBarItem.text = `$(project) Celebi: No project${serverSuffix}`;
             statusBarItem.tooltip = 'No Celebi project active';
             statusBarItem.show();
         }

@@ -8,7 +8,7 @@
 import * as vscode from 'vscode';
 import { CommandDependencies } from './index';
 import { executeAndLog, escapePythonString, getObjectNameFromArg, registerSimpleCommand } from './utils';
-import { execPython, execPythonInTerminal } from '../pythonRunner';
+import { execPython, execPythonInTerminal, resolveServerProfile } from '../pythonRunner';
 
 export function registerGlobalCommands(context: vscode.ExtensionContext, deps: CommandDependencies): void {
     const log = { messageStore: deps.messageStore, messagePanelProvider: deps.messagePanelProvider };
@@ -50,6 +50,41 @@ export function registerGlobalCommands(context: vscode.ExtensionContext, deps: C
     context.subscriptions.push(
         vscode.commands.registerCommand('celebi.showTrace', async (objectName?: string) => {
             await deps.webviewProvider.showTraceView(objectName);
+        })
+    );
+
+    // ---- Server switching ----
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('celebi.switchServer', async () => {
+            const config = vscode.workspace.getConfiguration('celebi');
+            const servers = config.get<Record<string, unknown>>('servers', {});
+            const names = Object.keys(servers);
+
+            if (names.length === 0) {
+                vscode.window.showInformationMessage(
+                    'No server profiles defined. Add them in settings.json under "celebi.servers".'
+                );
+                return;
+            }
+
+            const current = resolveServerProfile();
+            const items = names.map(n => ({
+                label: n,
+                description: current?.name === n ? '(active)' : '',
+                detail: (servers[n] as { host?: string })?.host ? `ssh ${(servers[n] as { host: string }).host}` : 'local'
+            }));
+
+            const selected = await vscode.window.showQuickPick(items, {
+                placeHolder: 'Select a server profile'
+            });
+
+            if (selected) {
+                await config.update('activeServer', selected.label, vscode.ConfigurationTarget.Global);
+                deps.provider.refresh();
+                deps.updateStatusBar();
+                vscode.window.showInformationMessage(`Switched to server: ${selected.label}`);
+            }
         })
     );
 

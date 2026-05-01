@@ -31,11 +31,8 @@ function wrapLine(line: string): string {
     // title0: or titleN:
     const titleMatch = trimmed.match(/^title(\d*):\s*(.*)/);
     if (titleMatch) {
-        const level = parseInt(titleMatch[1]) || 0;
         const content = escapeHtml(titleMatch[2]);
-        const sizes = ['15px', '14px', '13px', '12px'];
-        const size = sizes[Math.min(level, sizes.length - 1)];
-        return `<div style="font-weight:600;font-size:${size};color:var(--vscode-textPreformat-foreground);margin-top:6px;">${content}</div>`;
+        return `<div style="font-weight:600;font-size:${BASE_SIZE};color:var(--vscode-textPreformat-foreground);margin-top:6px;">${content}</div>`;
     }
 
     // comment:

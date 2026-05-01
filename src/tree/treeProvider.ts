@@ -158,10 +158,10 @@ export class CelebiTreeProvider implements vscode.TreeDataProvider<CelebiTreeIte
                     obj.path,
                     collapsibleState,
                     {
-                        title: `Show ${name}`,
-                        command: 'celebi.runPythonPackage',
-                        arguments: [`shell.MANAGER.sub_object('${name}').status()`],
-                        tooltip: `Show status of ${name}`
+                        title: `List ${name}`,
+                        command: 'celebi.showLs',
+                        arguments: [obj.path],
+                        tooltip: `List contents of ${name}`
                     }
                 );
             });

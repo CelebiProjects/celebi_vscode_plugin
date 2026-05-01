@@ -7,6 +7,7 @@
  */
 
 import { Message } from './messageStore';
+import { formatCelebiOutput } from '../formatOutput';
 
 /** Generate a random nonce for Content-Security-Policy. */
 export function getNonce(): string {
@@ -142,10 +143,11 @@ export function getHtmlContent(messages: Message[]): string {
 function renderMessage(msg: Message): string {
   const time = msg.timestamp.toLocaleTimeString();
   const statusClass = msg.status;
+  const formattedOutput = formatCelebiOutput(msg.output);
 
   return `<div class="message ${statusClass}">
       <div class="command">${escapeHtml(msg.command)}</div>
-      <div class="output ${statusClass}">${escapeHtml(msg.output)}</div>
+      <div class="output ${statusClass}">${formattedOutput}</div>
       <div class="timestamp">${time}</div>
   </div>`;
 }

@@ -1,10 +1,12 @@
 /**
  * Directory listing webview.
  *
- * Renders the output of a CelebiChrono shell ls() call as an HTML page.
+ * Renders the output of a CelebiChrono shell ls() call as a styled HTML page
+ * using the Celebi output formatter.
  */
 import * as vscode from 'vscode';
 import { escapeHtml } from './baseWebview';
+import { formatCelebiOutput } from '../formatOutput';
 
 let panel: vscode.WebviewPanel | undefined;
 
@@ -28,7 +30,7 @@ export async function showLsView(title: string, lsData: string) {
 }
 
 function getLsHtml(title: string, lsData: string): string {
-    const escapedLs = escapeHtml(lsData);
+    const formattedContent = formatCelebiOutput(lsData);
 
     return `<!DOCTYPE html>
 <html>
@@ -55,20 +57,12 @@ function getLsHtml(title: string, lsData: string): string {
             min-height: 400px;
             overflow: auto;
         }
-        pre {
-            margin: 0;
-            font-family: 'SF Mono', Monaco, 'Courier New', monospace;
-            font-size: 13px;
-            line-height: 1.5;
-            white-space: pre;
-            color: var(--vscode-foreground);
-        }
     </style>
 </head>
 <body>
     <h1>\u{1F4C1} ${escapeHtml(title)}</h1>
     <div class="ls-container">
-        <pre>${escapedLs}</pre>
+        ${formattedContent || '<div style="color:var(--vscode-descriptionForeground);">(empty)</div>'}
     </div>
 </body>
 </html>`;

@@ -12,26 +12,38 @@ import { formatCelebiOutput } from '../formatOutput';
 let panel: vscode.WebviewPanel | undefined;
 
 export async function showTraceView(objectName?: string) {
-    if (panel) {
-        panel.reveal();
-    } else {
-        panel = vscode.window.createWebviewPanel(
-            'celebiTrace', 'Celebi Trace',
-            vscode.ViewColumn.One,
-            { enableScripts: true }
-        );
-
-        panel.onDidDispose(() => {
-            panel = undefined;
-        });
-    }
-
     try {
         const treeData = await execPython(`shell.tree()`);
-        panel.webview.html = getTraceHtml(treeData);
+        const html = getTraceHtml(treeData);
+
+        if (panel) {
+            panel.webview.html = html;
+            panel.reveal();
+            return;
+        }
+
+        panel = vscode.window.createWebviewPanel(
+            'celebiTrace', 'Celebi Trace',
+            { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
+            { enableScripts: true, retainContextWhenHidden: true }
+        );
+
+        panel.onDidDispose(() => { panel = undefined; });
+        panel.webview.html = html;
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        panel.webview.html = getErrorHtml(message);
+        if (panel) {
+            panel.webview.html = getErrorHtml(message);
+            panel.reveal();
+        } else {
+            panel = vscode.window.createWebviewPanel(
+                'celebiTrace', 'Celebi Trace',
+                { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
+                { enableScripts: true }
+            );
+            panel.onDidDispose(() => { panel = undefined; });
+            panel.webview.html = getErrorHtml(message);
+        }
     }
 }
 

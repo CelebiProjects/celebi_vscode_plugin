@@ -10,41 +10,35 @@ import * as vscode from 'vscode';
 let panel: vscode.WebviewPanel | undefined;
 
 export async function showBrowser(objectName: string, url: string) {
-    const column = vscode.window.activeTextEditor
-        ? vscode.window.activeTextEditor.viewColumn
-        : vscode.ViewColumn.One;
+    const html = getBrowserHtml(objectName, url);
 
     if (panel) {
-        panel.reveal(column);
-    } else {
-        panel = vscode.window.createWebviewPanel(
-            'celebiBrowser',
-            `Celebi: ${objectName}`,
-            column || vscode.ViewColumn.One,
-            {
-                enableScripts: true,
-                retainContextWhenHidden: true
-            }
-        );
-
-        panel.onDidDispose(() => {
-            panel = undefined;
-        });
-
-        // Forward "open in external browser" requests from the webview
-        panel.webview.onDidReceiveMessage(
-            message => {
-                switch (message.command) {
-                    case 'openExternal':
-                        vscode.env.openExternal(vscode.Uri.parse(message.url));
-                        return;
-                }
-            }
-        );
+        panel.title = `Celebi: ${objectName}`;
+        panel.webview.html = html;
+        panel.reveal();
+        return;
     }
 
-    panel.title = `Celebi: ${objectName}`;
-    panel.webview.html = getBrowserHtml(objectName, url);
+    panel = vscode.window.createWebviewPanel(
+        'celebiBrowser',
+        `Celebi: ${objectName}`,
+        { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
+        { enableScripts: true, retainContextWhenHidden: true }
+    );
+
+    panel.onDidDispose(() => { panel = undefined; });
+
+    panel.webview.onDidReceiveMessage(
+        message => {
+            switch (message.command) {
+                case 'openExternal':
+                    vscode.env.openExternal(vscode.Uri.parse(message.url));
+                    return;
+            }
+        }
+    );
+
+    panel.webview.html = html;
 }
 
 function getBrowserHtml(objectName: string, url: string): string {
@@ -105,11 +99,6 @@ function getBrowserHtml(objectName: string, url: string): string {
             height: 100%;
             border: none;
             background: white;
-        }
-        .error-message {
-            padding: 20px;
-            text-align: center;
-            color: var(--vscode-descriptionForeground);
         }
     </style>
 </head>

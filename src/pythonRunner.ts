@@ -146,6 +146,7 @@ function buildPythonCode(pythonExpr: string, packagePath: string): string {
             lines.push(`sys.path.insert(0, '${packagePath}')`);
         }
         lines.push(`from CelebiChrono.interface import ChernManager, shell`);
+        lines.push(`from CelebiChrono.kernel.vobj_file_display import LsParameters`);
         lines.push(pythonExpr.trim());
         lines.push(`print(result) if result is not None else None`);
         return lines.join('\n');
@@ -157,6 +158,7 @@ function buildPythonCode(pythonExpr: string, packagePath: string): string {
         lines.push(`sys.path.insert(0, '${packagePath}')`);
     }
     lines.push(`from CelebiChrono.interface import ChernManager, shell`);
+    lines.push(`from CelebiChrono.kernel.vobj_file_display import LsParameters`);
     lines.push(`result = ${pythonExpr}`);
     lines.push(`print(result) if result is not None else None`);
     return lines.join('; ');

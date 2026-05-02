@@ -11,22 +11,29 @@ import { formatCelebiOutput } from '../formatOutput';
 let panel: vscode.WebviewPanel | undefined;
 
 export async function showLsView(title: string, lsData: string) {
-    if (panel) {
-        panel.reveal();
-    } else {
-        panel = vscode.window.createWebviewPanel(
-            'celebiLs', 'Celebi LS',
-            vscode.ViewColumn.One,
-            { enableScripts: true }
-        );
+    console.log('[DEBUG showLsView] title:', title, 'data length:', lsData?.length);
 
-        panel.onDidDispose(() => {
-            panel = undefined;
-        });
+    const html = getLsHtml(title, lsData);
+
+    if (panel) {
+        panel.title = `\u{1F4C1} ${title}`;
+        panel.webview.html = html;
+        panel.reveal();
+        console.log('[DEBUG showLsView] existing panel updated, html length:', html.length);
+        return;
     }
 
-    panel.title = `\u{1F4C1} ${title}`;
-    panel.webview.html = getLsHtml(title, lsData);
+    panel = vscode.window.createWebviewPanel(
+        'celebiLs',
+        `\u{1F4C1} ${title}`,
+        { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
+        { enableScripts: true, retainContextWhenHidden: true }
+    );
+
+    panel.onDidDispose(() => { panel = undefined; });
+
+    panel.webview.html = html;
+    console.log('[DEBUG showLsView] panel created, html length:', html.length);
 }
 
 function getLsHtml(title: string, lsData: string): string {

@@ -8,6 +8,7 @@
 import * as vscode from 'vscode';
 import { CommandDependencies } from './index';
 import { executeAndLog, escapePythonString, getObjectNameFromArg, registerSimpleCommand } from './utils';
+import { renderMarkdown } from '../formatOutput';
 import { execPython, execPythonInTerminal, resolveServerProfile } from '../pythonRunner';
 
 export function registerGlobalCommands(context: vscode.ExtensionContext, deps: CommandDependencies): void {
@@ -238,12 +239,53 @@ export function registerGlobalCommands(context: vscode.ExtensionContext, deps: C
     context.subscriptions.push(
         vscode.commands.registerCommand('celebi.showLs', async (arg?: unknown) => {
             try {
+                console.log('[DEBUG showLs] arg:', arg);
                 const { objectName, title } = await getObjectNameFromArg(arg);
-                const result = await executeAndLog(deps.messageStore, deps.messagePanelProvider,
-                    `ls ${objectName}`,
-                    () => execPython(`shell.MANAGER.sub_object('${escapePythonString(objectName)}').ls()`));
+                console.log('[DEBUG showLs] objectName:', objectName, 'title:', title);
+                const pyExpr = `shell.MANAGER.sub_object('${escapePythonString(objectName)}').ls(LsParameters(readme=False))`;
+                console.log('[DEBUG showLs] pythonExpr:', pyExpr);
+                const result = await execPython(pyExpr);
+                console.log('[DEBUG showLs] result length:', result?.length, 'first 200 chars:', result?.substring(0, 200));
+                deps.messageStore.addMessage(`ls ${objectName}`, 'Directory listing loaded', 'success');
+                deps.messagePanelProvider.updateWebview();
                 await deps.webviewProvider.showLsView(title, result);
+                console.log('[DEBUG showLs] webview shown');
             } catch (error) {
+                console.error('[DEBUG showLs] error:', error);
+                const message = error instanceof Error ? error.message : String(error);
+                vscode.window.showErrorMessage(`Celebi: ${message}`);
+            }
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('celebi.showReadme', async (arg?: unknown) => {
+            try {
+                console.log('[DEBUG showReadme] arg:', arg);
+                const { objectName, title } = await getObjectNameFromArg(arg);
+                console.log('[DEBUG showReadme] objectName:', objectName, 'title:', title);
+
+                // Run readme → webview and ls (without readme) → sidebar, in parallel
+                const readmePy = `shell.MANAGER.sub_object('${escapePythonString(objectName)}').readme()`;
+                const lsPy = `shell.MANAGER.sub_object('${escapePythonString(objectName)}').ls(LsParameters(readme=False))`;
+                const [readmeResult, lsResult] = await Promise.all([
+                    execPython(readmePy),
+                    execPython(lsPy)
+                ]);
+                console.log('[DEBUG showReadme] readme length:', readmeResult?.length);
+                console.log('[DEBUG showReadme] ls length:', lsResult?.length);
+
+                // Show README in webview
+                const html = renderMarkdown(readmeResult);
+                console.log('[DEBUG showReadme] html length:', html?.length);
+                await deps.webviewProvider.showReadmeView(title, html);
+
+                // Show ls output in Information sidebar panel
+                deps.messageStore.addMessage(`ls ${objectName}`, lsResult, 'success');
+                deps.messagePanelProvider.updateWebview();
+                console.log('[DEBUG showReadme] done');
+            } catch (error) {
+                console.error('[DEBUG showReadme] error:', error);
                 const message = error instanceof Error ? error.message : String(error);
                 vscode.window.showErrorMessage(`Celebi: ${message}`);
             }

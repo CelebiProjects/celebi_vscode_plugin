@@ -1,11 +1,12 @@
 /**
  * Celebi webview provider — public API.
  *
- * Delegates to the three independent webview modules:
- * trace, ls (directory listing), and browser (embedded iframe).
+ * Delegates to the independent webview modules:
+ * trace, ls (directory listing), readme (Markdown), and browser (embedded iframe).
  */
 import { showTraceView } from './traceWebview';
 import { showLsView } from './lsWebview';
+import { showReadmeView } from './readmeWebview';
 import { showBrowser } from './browserWebview';
 
 export class CelebiWebviewProvider {
@@ -17,6 +18,11 @@ export class CelebiWebviewProvider {
     /** Show a directory listing (ls) webview. */
     async showLsView(title: string, lsData: string) {
         return showLsView(title, lsData);
+    }
+
+    /** Show a README webview with pre-rendered Markdown HTML. */
+    async showReadmeView(title: string, htmlContent: string) {
+        return showReadmeView(title, htmlContent);
     }
 
     /** Show a webview with an embedded <iframe> pointing to the given URL. */

@@ -143,7 +143,9 @@ export function getHtmlContent(messages: Message[]): string {
 function renderMessage(msg: Message): string {
   const time = msg.timestamp.toLocaleTimeString();
   const statusClass = msg.status;
-  const formattedOutput = formatCelebiOutput(msg.output);
+  console.log('[DEBUG messageHtml] raw output first 500:', msg.output?.substring(0, 500));
+  const formattedOutput = formatCelebiOutput(msg.output, { showComments: false });
+  console.log('[DEBUG messageHtml] formatted first 500:', formattedOutput?.substring(0, 500));
 
   return `<div class="message ${statusClass}">
       <div class="command">${escapeHtml(msg.command)}</div>

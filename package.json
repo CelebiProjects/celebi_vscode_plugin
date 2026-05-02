@@ -187,6 +187,11 @@
         "icon": "$(list-unordered)"
       },
       {
+        "command": "celebi.showReadme",
+        "title": "Show README",
+        "icon": "$(book)"
+      },
+      {
         "command": "celebi.createTask",
         "title": "Create New Task",
         "icon": "$(play-circle)"

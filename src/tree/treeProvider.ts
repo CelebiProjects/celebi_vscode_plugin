@@ -28,9 +28,7 @@ export class CelebiTreeProvider implements vscode.TreeDataProvider<CelebiTreeIte
     private _onDidChangeTreeData = new vscode.EventEmitter<CelebiTreeItem | undefined | void>();
     readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
-    // projectRoot defaults to '' so the pre-rewrite extension.ts keeps
-    // compiling with `new CelebiTreeProvider()` until Task 9 rewrites it.
-    constructor(private readonly projectRoot: string = '') {}
+    constructor(private readonly projectRoot: string) {}
 
     getTreeItem(element: CelebiTreeItem): vscode.TreeItem {
         return element;

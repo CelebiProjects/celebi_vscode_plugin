@@ -1,105 +1,150 @@
 /**
  * Celebi VS Code Extension — entry point.
  *
- * Wiring: creates providers, registers tree/webview/message infrastructure,
- * sets up file watchers and status bar, then delegates all command registration
- * to commands/registerCommands().
+ * Lean viewer: a repository tree (objects + workspace files, built by a
+ * one-shot Python script) and a detail webview aligned with celebi_ui's
+ * CelebiExplorer/DetailPanel. Results come from the DITE HTTP API.
  */
+import * as path from 'path';
 import * as vscode from 'vscode';
 import { CelebiTreeProvider } from './tree/treeProvider';
-import { execPython, getOutputChannel, resolveServerProfile } from './pythonRunner';
-import { CelebiWebviewProvider } from './webview';
-import { MessageStore } from './message/messageStore';
-import { MessagePanelProvider } from './message/messagePanel';
-import { registerCommands } from './commands';
+import { CelebiTreeItem } from './treeItem';
+import { YukiClient } from './yuki/client';
+import { readProjectMeta, readObjectConfig, readFileForPreview } from './projectMeta';
+import { runCelebiPython } from './celebiScript';
+import { DetailWebviewProvider } from './webview/detailWebview';
+import {
+    buildSelectNodePayload, buildImpressionLoading, buildImpressionReady,
+    buildImpressionError, NodeDetail,
+} from './webview/detailMessages';
+import { TreeNode } from './tree/treeBuilder';
 
-export function activate(context: vscode.ExtensionContext) {
-    // -- Output channel --
-    const outputChannel = getOutputChannel();
-    context.subscriptions.push(outputChannel);
-
-    // -- Message store & panel --
-    const messageStore = new MessageStore();
-    const messagePanelProvider = new MessagePanelProvider(messageStore);
-
-    try {
-        context.subscriptions.push(
-            vscode.window.registerWebviewViewProvider(
-                MessagePanelProvider.viewType,
-                messagePanelProvider,
-                { webviewOptions: { retainContextWhenHidden: true } }
-            )
+export function activate(context: vscode.ExtensionContext): void {
+    const projectRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    if (!projectRoot) {
+        void vscode.window.showInformationMessage(
+            'Celebi: open a workspace folder to browse its repository.'
         );
-    } catch (error) {
-        console.error('Failed to register WebviewViewProvider:', error);
+        return;
     }
-    context.subscriptions.push(messagePanelProvider);
 
-    // -- Tree provider --
-    const provider = new CelebiTreeProvider();
+    // -- Project metadata & yuki client --
+    const meta = readProjectMeta(projectRoot);
+    const config = vscode.workspace.getConfiguration('celebi');
+    const baseUrl = meta.diteUrl || config.get<string>('diteServerUrl', 'http://127.0.0.1:3315');
+    const yuki = new YukiClient(baseUrl);
+
+    // -- Tree --
+    const provider = new CelebiTreeProvider(projectRoot);
+    const treeView = vscode.window.createTreeView('celebiTreeView', {
+        treeDataProvider: provider,
+    });
     context.subscriptions.push(
-        vscode.window.registerTreeDataProvider('celebiTreeView', provider)
+        treeView,
+        vscode.commands.registerCommand('celebi.refreshTree', () => provider.refresh())
     );
 
-    // -- Webview provider --
-    const webviewProvider = new CelebiWebviewProvider();
+    // -- Detail webview --
+    const detail = new DetailWebviewProvider({
+        onSelectImpression: async (impression) => {
+            if (!meta.projectUuid) {
+                detail.show(buildImpressionError('Project UUID missing — cannot load results.'));
+                return;
+            }
+            detail.show(buildImpressionLoading());
+            const [items, status, workflow] = await Promise.all([
+                yuki.fetchImpressionResults(meta.projectUuid, impression),
+                yuki.fetchImpressionStatus(meta.projectUuid, impression),
+                yuki.fetchImpressionWorkflow(meta.projectUuid, impression),
+            ]);
+            detail.show(buildImpressionReady(items, status.status, status.details, workflow));
+        },
+        onNavigate: async (targetPath) => {
+            const node = provider.getNodeById(targetPath);
+            if (!node) return;
+            await treeView.reveal(toItemFor(node), { select: true, focus: true });
+        },
+    });
+    context.subscriptions.push(detail);
 
-    // -- Status bar --
-    const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
-    statusBarItem.command = 'celebi.showOutput';
-    context.subscriptions.push(statusBarItem);
-
-    async function updateStatusBar() {
-        try {
-            const projectName = await execPython('shell.MANAGER.get_current_project()');
-            const server = resolveServerProfile();
-            const serverSuffix = server ? ` [${server.name}]` : '';
-            statusBarItem.text = `$(project) Celebi: ${projectName}${serverSuffix}`;
-            statusBarItem.tooltip = `Current Celebi project: ${projectName}${server ? ` (server: ${server.name}${server.profile.host ? ' via ssh' : ''})` : ''}`;
-            statusBarItem.show();
-        } catch {
-            const server = resolveServerProfile();
-            const serverSuffix = server ? ` [${server.name}]` : '';
-            statusBarItem.text = `$(project) Celebi: No project${serverSuffix}`;
-            statusBarItem.tooltip = 'No Celebi project active';
-            statusBarItem.show();
-        }
-    }
-    updateStatusBar();
-
-    // -- File watchers (auto-refresh tree) --
-    const config = vscode.workspace.getConfiguration('celebi');
-    const projectPath = config.get<string>('projectPath', '') ||
-                        vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-
-    if (projectPath) {
-        const celebiWatcher = vscode.workspace.createFileSystemWatcher(
-            new vscode.RelativePattern(projectPath, '.celebi/**/*')
-        );
-        celebiWatcher.onDidChange(() => provider.refresh());
-        celebiWatcher.onDidCreate(() => provider.refresh());
-        celebiWatcher.onDidDelete(() => provider.refresh());
-        context.subscriptions.push(celebiWatcher);
-
-        const impressWatcher = vscode.workspace.createFileSystemWatcher(
-            new vscode.RelativePattern(projectPath, '**/impressions/**/*')
-        );
-        impressWatcher.onDidChange(() => provider.refresh());
-        impressWatcher.onDidCreate(() => provider.refresh());
-        context.subscriptions.push(impressWatcher);
+    function toItemFor(node: TreeNode): CelebiTreeItem {
+        const collapsible = node.children.length > 0
+            ? vscode.TreeItemCollapsibleState.Collapsed
+            : vscode.TreeItemCollapsibleState.None;
+        return new CelebiTreeItem(node, collapsible);
     }
 
-    // -- Register all commands --
-    registerCommands(context, {
-        provider,
-        webviewProvider,
-        messageStore,
-        messagePanelProvider,
-        outputChannel,
-        updateStatusBar
+    // -- Selection → detail payload --
+    treeView.onDidChangeSelection(async (e) => {
+        const item = e.selection[0];
+        if (!item) return;
+        await showDetail(item);
     });
 
-    // -- SCM provider (placeholder for git integration) --
-    const scm = vscode.scm.createSourceControl('celebi', 'Celebi');
-    context.subscriptions.push(scm);
+    const showDetail = async (item: CelebiTreeItem): Promise<void> => {
+        const node = item.node;
+
+        if (node.type === 'file') {
+            const fileData = node.data as Record<string, unknown>;
+            const absolutePath = String(fileData.absolutePath || path.join(projectRoot, node.id));
+            const nodeDetail: NodeDetail = {
+                id: node.id, name: node.name, kind: 'file',
+                celebiType: null, data: fileData,
+            };
+            let file;
+            try {
+                file = readFileForPreview(absolutePath);
+            } catch {
+                file = undefined;
+            }
+            detail.show(buildSelectNodePayload(nodeDetail, null, null, provider.getTypeMap(), meta.projectUuid, file));
+            return;
+        }
+
+        const nodeDetail: NodeDetail = {
+            id: node.id, name: node.name, kind: node.type,
+            celebiType: node.celebiType, data: node.data,
+        };
+
+        const fsPath = path.join(projectRoot, node.id);
+        const { config: objectConfig, localConfig } = readObjectConfig(fsPath);
+        const mergedConfig = { ...(objectConfig || {}), ...(localConfig || {}) };
+
+        let readme: string | null = null;
+        try {
+            const result = (await runCelebiPython('readme', projectRoot, fsPath)) as { readme: string | null };
+            readme = result.readme;
+        } catch {
+            // README is optional — keep null
+        }
+
+        detail.show(buildSelectNodePayload(
+            nodeDetail, mergedConfig, readme, provider.getTypeMap(), meta.projectUuid
+        ));
+
+        // Auto-fetch job status for the default impression (results load on demand)
+        const impression = mergedConfig.impression as string | undefined;
+        if (node.celebiType === 'task' && impression && meta.projectUuid) {
+            const status = await yuki.fetchImpressionStatus(meta.projectUuid, impression);
+            detail.show(buildImpressionReady([], status.status, status.details, ''));
+        }
+    }
+
+    // -- File watcher: refresh the tree on project changes (debounced) --
+    const watcher = vscode.workspace.createFileSystemWatcher(
+        new vscode.RelativePattern(projectRoot, '**/*')
+    );
+    let debounceTimer: NodeJS.Timeout | undefined;
+    const scheduleRefresh = () => {
+        if (debounceTimer) clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => void provider.refresh(), 800);
+    };
+    watcher.onDidChange(scheduleRefresh);
+    watcher.onDidCreate(scheduleRefresh);
+    watcher.onDidDelete(scheduleRefresh);
+    context.subscriptions.push(watcher);
+
+    void provider.refresh();
 }
+
+export function deactivate(): void { /* nothing to clean up */ }

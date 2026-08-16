@@ -94,6 +94,9 @@ export class YukiClient {
         const timer = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT);
         try {
             const response = await this.fetchImpl(url, { method, signal: controller.signal });
+            if (response.status < 200 || response.status >= 300) {
+                throw new Error('DITE server responded with HTTP ' + response.status);
+            }
             if (method === 'get') {
                 const text = await response.text();
                 try {
@@ -110,20 +113,16 @@ export class YukiClient {
 
     /** Fetch result files for an impression (plots first, then by name). */
     async fetchImpressionResults(projectUuid: string, impression: string, kind = 'stageout'): Promise<ImpressionFile[]> {
-        try {
-            await this.request('get', `/collect/${encodePath(projectUuid)}/${encodePath(impression)}`).catch(() => null);
-            const data = await this.request('get', `/file-status/${encodePath(projectUuid)}/${encodePath(impression)}/none?kind=${kind}`);
-            const items = coerceArray(data)
-                .map((entry) => this.normalizeImpressionFile(entry, projectUuid, impression))
-                .filter((x): x is ImpressionFile => x !== null)
-                .sort((a, b) => {
-                    if (Boolean(a.is_plot) !== Boolean(b.is_plot)) return a.is_plot ? -1 : 1;
-                    return a.name.localeCompare(b.name);
-                });
-            return items;
-        } catch {
-            return [];
-        }
+        await this.request('get', `/collect/${encodePath(projectUuid)}/${encodePath(impression)}`).catch(() => null);
+        const data = await this.request('get', `/file-status/${encodePath(projectUuid)}/${encodePath(impression)}/none?kind=${kind}`);
+        const items = coerceArray(data)
+            .map((entry) => this.normalizeImpressionFile(entry, projectUuid, impression))
+            .filter((x): x is ImpressionFile => x !== null)
+            .sort((a, b) => {
+                if (Boolean(a.is_plot) !== Boolean(b.is_plot)) return a.is_plot ? -1 : 1;
+                return a.name.localeCompare(b.name);
+            });
+        return items;
     }
 
     private normalizeImpressionFile(entry: unknown, projectUuid: string, impression: string): ImpressionFile | null {
@@ -148,26 +147,18 @@ export class YukiClient {
 
     /** Fetch job status for an impression (DITE /status endpoint). */
     async fetchImpressionStatus(projectUuid: string, impression: string): Promise<ImpressionStatus> {
-        try {
-            const data = await this.request('get', `/status/${encodePath(projectUuid)}/${encodePath(impression)}`);
-            if (typeof data === 'string') return { status: data, details: '' };
-            const obj = (data ?? {}) as Record<string, unknown>;
-            return {
-                status: String(obj.status_legacy || obj.status || ''),
-                details: String(obj.details || obj.message || obj.error || ''),
-            };
-        } catch {
-            return { status: '', details: '' };
-        }
+        const data = await this.request('get', `/status/${encodePath(projectUuid)}/${encodePath(impression)}`);
+        if (typeof data === 'string') return { status: data, details: '' };
+        const obj = (data ?? {}) as Record<string, unknown>;
+        return {
+            status: String(obj.status_legacy || obj.status || ''),
+            details: String(obj.details || obj.message || obj.error || ''),
+        };
     }
 
     /** Fetch workflow info for an impression (plain text "machine workflow_id"). */
     async fetchImpressionWorkflow(projectUuid: string, impression: string): Promise<string> {
-        try {
-            const data = await this.request('get', `/workflow/${encodePath(projectUuid)}/${encodePath(impression)}`);
-            return typeof data === 'string' ? data.trim() : '';
-        } catch {
-            return '';
-        }
+        const data = await this.request('get', `/workflow/${encodePath(projectUuid)}/${encodePath(impression)}`);
+        return typeof data === 'string' ? data.trim() : '';
     }
 }

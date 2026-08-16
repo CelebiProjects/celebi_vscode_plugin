@@ -44,8 +44,12 @@ export function activate(context: vscode.ExtensionContext): void {
     );
 
     // -- Detail webview --
+    // Selection sequence token: async detail payloads from a stale selection
+    // must not overwrite newer ones.
+    let selectionSeq = 0;
     const detail = new DetailWebviewProvider({
         onSelectImpression: async (impression) => {
+            const mySeq = selectionSeq;
             if (!meta.projectUuid) {
                 detail.show(buildImpressionError('Project UUID missing — cannot load results.'));
                 return;
@@ -56,6 +60,7 @@ export function activate(context: vscode.ExtensionContext): void {
                 yuki.fetchImpressionStatus(meta.projectUuid, impression),
                 yuki.fetchImpressionWorkflow(meta.projectUuid, impression),
             ]);
+            if (mySeq !== selectionSeq) return;
             detail.show(buildImpressionReady(items, status.status, status.details, workflow));
         },
         onNavigate: async (targetPath) => {
@@ -74,6 +79,7 @@ export function activate(context: vscode.ExtensionContext): void {
     });
 
     const showDetail = async (item: CelebiTreeItem): Promise<void> => {
+        const mySeq = ++selectionSeq;
         const node = item.node;
 
         if (node.type === 'file') {
@@ -95,7 +101,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
         const nodeDetail: NodeDetail = {
             id: node.id, name: node.name, kind: node.type,
-            celebiType: node.celebiType, data: node.data,
+            celebiType: node.celebiType, data: { ...node.data, childrenCount: node.children.length },
         };
 
         const fsPath = path.join(projectRoot, node.id);
@@ -110,6 +116,7 @@ export function activate(context: vscode.ExtensionContext): void {
             // README is optional — keep null
         }
 
+        if (mySeq !== selectionSeq) return;
         detail.show(buildSelectNodePayload(
             nodeDetail, mergedConfig, readme, provider.getTypeMap(), meta.projectUuid
         ));
@@ -118,6 +125,7 @@ export function activate(context: vscode.ExtensionContext): void {
         const impression = mergedConfig.impression as string | undefined;
         if (node.celebiType === 'task' && impression && meta.projectUuid) {
             const status = await yuki.fetchImpressionStatus(meta.projectUuid, impression);
+            if (mySeq !== selectionSeq) return;
             detail.show(buildImpressionReady([], status.status, status.details, ''));
         }
     }

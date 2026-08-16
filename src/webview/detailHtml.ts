@@ -200,10 +200,11 @@ export function getDetailHtml(webview: vscode.Webview): string {
         if (msg.node.kind === 'object' && impressions.length > 0) {
             select.hidden = false;
             select.innerHTML = '<option value="">Select impression</option>' + impressions.map((imp) => {
-                const uuid = typeof imp === 'object' ? imp.uuid : imp;
+                const uuid = typeof imp === 'object' ? String(imp?.uuid ?? '') : String(imp);
                 const timestamp = (typeof imp === 'object' && imp.timestamp)
                     ? new Date(imp.timestamp).toLocaleString(undefined, { hourCycle: 'h23' }) : '';
-                const label = timestamp ? uuid.substring(0, 7) + ' (' + timestamp + ')' : uuid.substring(0, 7);
+                const short = uuid ? uuid.substring(0, 7) : '(no uuid)';
+                const label = timestamp ? short + ' (' + timestamp + ')' : short;
                 return '<option value="' + esc(uuid) + '">' + esc(label) + '</option>';
             }).join('');
             select.value = msg.config.impression || '';
@@ -359,7 +360,9 @@ export function getDetailHtml(webview: vscode.Webview): string {
 
     // Impression selector
     $('impressionSelect').addEventListener('change', (e) => {
-        vscode.postMessage({ type: 'selectImpression', impression: e.target.value });
+        if (e.target.value) {
+            vscode.postMessage({ type: 'selectImpression', impression: e.target.value });
+        }
     });
 
     // Relation tags (delegated)

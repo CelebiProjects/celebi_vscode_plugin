@@ -67,10 +67,10 @@ describe('YukiClient.fetchImpressionResults', () => {
         }
     });
 
-    test('returns [] when the server errors', async () => {
+    test('rejects when the server errors', async () => {
         const fetchImpl = () => Promise.reject(new Error('ECONNREFUSED'));
         const client = new YukiClient('http://127.0.0.1:3315', fetchImpl as never);
-        expect(await client.fetchImpressionResults('p', 'i')).toEqual([]);
+        await expect(client.fetchImpressionResults('p', 'i')).rejects.toThrow();
     });
 });
 
@@ -87,10 +87,16 @@ describe('YukiClient status and workflow', () => {
         expect(await client.fetchImpressionStatus('p', 'i')).toEqual({ status: 'running', details: '' });
     });
 
-    test('fetchImpressionStatus returns empty on error', async () => {
+    test('fetchImpressionStatus rejects on transport error', async () => {
         const fetchImpl = () => Promise.reject(new Error('down'));
         const client = new YukiClient('http://127.0.0.1:3315', fetchImpl as never);
-        expect(await client.fetchImpressionStatus('p', 'i')).toEqual({ status: '', details: '' });
+        await expect(client.fetchImpressionStatus('p', 'i')).rejects.toThrow();
+    });
+
+    test('fetchImpressionStatus rejects on non-2xx response', async () => {
+        const fetchImpl = () => Promise.resolve(jsonResponse('Not Found', 404));
+        const client = new YukiClient('http://127.0.0.1:3315', fetchImpl as never);
+        await expect(client.fetchImpressionStatus('p', 'i')).rejects.toThrow('404');
     });
 
     test('fetchImpressionWorkflow trims plain text', async () => {
@@ -99,10 +105,10 @@ describe('YukiClient status and workflow', () => {
         expect(await client.fetchImpressionWorkflow('p', 'i')).toBe('machine1 wf-42');
     });
 
-    test('fetchImpressionWorkflow returns empty on error', async () => {
+    test('fetchImpressionWorkflow rejects on transport error', async () => {
         const fetchImpl = () => Promise.reject(new Error('down'));
         const client = new YukiClient('http://127.0.0.1:3315', fetchImpl as never);
-        expect(await client.fetchImpressionWorkflow('p', 'i')).toBe('');
+        await expect(client.fetchImpressionWorkflow('p', 'i')).rejects.toThrow();
     });
 });
 
@@ -116,7 +122,7 @@ describe('YukiClient timeout', () => {
         const client = new YukiClient('http://127.0.0.1:3315', fetchImpl as never);
         const promise = client.fetchImpressionStatus('p', 'i');
         jest.advanceTimersByTime(10_001);
-        expect(await promise).toEqual({ status: '', details: '' });
+        await expect(promise).rejects.toThrow();
         jest.useRealTimers();
     });
 });

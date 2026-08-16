@@ -242,7 +242,7 @@ export async function runCelebiPython(
         execFile(
             env.pythonPath,
             ['-c', PYTHON_SCRIPT, projectPath, mode, nodePath],
-            { env: pyEnv, maxBuffer: 10 * 1024 * 1024 },
+            { env: pyEnv, maxBuffer: 100 * 1024 * 1024 },
             (error, stdout) => {
                 if (error) {
                     reject(new Error(`Celebi Python script failed (${env.pythonPath}): ${error.message}`));

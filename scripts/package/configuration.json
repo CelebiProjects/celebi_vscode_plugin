@@ -1,0 +1,58 @@
+{
+  "configuration": {
+    "title": "Repository",
+    "properties": {
+      "celebi.pythonPath": {
+        "type": "string",
+        "default": "",
+        "description": "Path to Python interpreter. If empty, auto-detects from virtualenv or uses 'python'"
+      },
+      "celebi.virtualenvPath": {
+        "type": "string",
+        "default": "",
+        "description": "Path to Python virtualenv directory (e.g., /path/to/.venv). Auto-detected if empty"
+      },
+      "celebi.packagePath": {
+        "type": "string",
+        "default": "",
+        "description": "Optional: Path to CelebiChrono package (if not in Python path)"
+      },
+      "celebi.projectPath": {
+        "type": "string",
+        "default": "",
+        "description": "Optional: Default Celebi project path"
+      },
+      "celebi.servers": {
+        "type": "object",
+        "default": {},
+        "description": "Named server profiles for quick switching between local and remote CelebiChrono instances.",
+        "additionalProperties": {
+          "type": "object",
+          "properties": {
+            "host": {
+              "type": "string",
+              "description": "SSH host (e.g., user@hostname). If set, commands run remotely."
+            },
+            "pythonPath": {
+              "type": "string",
+              "description": "Path to Python interpreter on this server."
+            },
+            "virtualenvPath": {
+              "type": "string",
+              "description": "Path to virtualenv on this server."
+            },
+            "packagePath": {
+              "type": "string",
+              "description": "Path to CelebiChrono package on this server."
+            }
+          }
+        }
+      },
+      "celebi.activeServer": {
+        "type": "string",
+        "default": "",
+        "description": "Name of the currently active server profile (from celebi.servers). Set by the Switch Server command."
+      }
+    }
+  }
+}

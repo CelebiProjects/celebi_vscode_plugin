@@ -10,8 +10,8 @@ import * as vscode from 'vscode';
 /** All recognised Celebi object types — used for icon selection and filtering. */
 export type CelebiObjectType = 'project' | 'algorithm' | 'task' | 'data' | 'directory'
     | 'action' | 'separator' | 'unknown'
-    | 'view-group' | 'actions-group' | 'git-group' | 'info-group'
-    | 'exec-group' | 'object-view-group';
+    | 'view-group' | 'actions-group' | 'git-group'
+    | 'object-view-group' | 'object-exec-group' | 'object-info-group';
 
 export class CelebiTreeItem extends vscode.TreeItem {
     children?: CelebiTreeItem[];
@@ -53,9 +53,9 @@ export class CelebiTreeItem extends vscode.TreeItem {
                 return new vscode.ThemeIcon('zap', new vscode.ThemeColor('testing.iconQueued'));
             case 'git-group':
                 return new vscode.ThemeIcon('git-branch', new vscode.ThemeColor('gitDecoration.addedResourceForeground'));
-            case 'info-group':
+            case 'object-info-group':
                 return new vscode.ThemeIcon('info', new vscode.ThemeColor('testing.iconSkipped'));
-            case 'exec-group':
+            case 'object-exec-group':
                 return new vscode.ThemeIcon('zap', new vscode.ThemeColor('charts.blue'));
             case 'object-view-group':
                 return new vscode.ThemeIcon('preview', new vscode.ThemeColor('icon.foreground'));

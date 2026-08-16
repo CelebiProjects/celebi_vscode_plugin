@@ -129,7 +129,7 @@ export function registerGlobalCommands(context: vscode.ExtensionContext, deps: C
     context.subscriptions.push(
         vscode.commands.registerCommand('celebi.openObject', async (objectPath: string) => {
             try {
-                const pythonExpr = `shell.MANAGER.sub_object('${escapePythonString(objectPath)}').status()`;
+                const pythonExpr = `shell.MANAGER.sub_object('${escapePythonString(objectPath)}').printed_status()`;
                 await executeAndLog(log.messageStore, log.messagePanelProvider, `open ${objectPath}`,
                     () => execPython(pythonExpr));
                 vscode.window.showInformationMessage(`Object status displayed`);

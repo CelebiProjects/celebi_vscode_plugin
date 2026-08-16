@@ -10,7 +10,7 @@ import { execPython } from '../pythonRunner';
 
 /**
  * Build the View + Execute/Actions group items for an object node.
- * The View group always runs `.status()`.  The Execute group dispatches
+ * The View group always runs `.printed_status()`.  The Execute group dispatches
  * based on objectType: submit (task), impress (algorithm), or cat (data).
  */
 export async function getObjectActions(object: CelebiTreeItem): Promise<CelebiTreeItem[]> {
@@ -34,7 +34,7 @@ export async function getObjectActions(object: CelebiTreeItem): Promise<CelebiTr
         {
             title: 'Status',
             command: 'celebi.runPythonPackage',
-            arguments: [`shell.MANAGER.sub_object('${objectName}').status()`],
+            arguments: [`shell.MANAGER.sub_object('${objectName}').printed_status()`],
             tooltip: 'Status'
         }
     );
@@ -68,7 +68,7 @@ export async function getObjectActions(object: CelebiTreeItem): Promise<CelebiTr
 
     const execGroup = new CelebiTreeItem(
         object.objectType === 'task' ? 'Execute' : 'Actions',
-        'exec-group', object.objectPath,
+        'object-exec-group', object.objectPath,
         vscode.TreeItemCollapsibleState.None,
         execCommand
     );

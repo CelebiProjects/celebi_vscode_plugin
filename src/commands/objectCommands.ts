@@ -14,7 +14,7 @@ export function registerObjectCommands(context: vscode.ExtensionContext, deps: C
     const log = { messageStore: deps.messageStore, messagePanelProvider: deps.messagePanelProvider };
 
     // ---- Simple object actions (all follow the same pattern) ----
-    registerObjectAction(context, 'celebi.objectStatus',    'status',       n => `shell.MANAGER.sub_object('${n}').status()`,             log);
+    registerObjectAction(context, 'celebi.objectStatus',    'status',       n => `shell.MANAGER.sub_object('${n}').printed_status()`,             log);
     registerObjectAction(context, 'celebi.objectTree',      'tree',         n => `shell.MANAGER.sub_object('${n}').tree()`,               log);
     registerObjectAction(context, 'celebi.objectJobs',      'jobs',         n => `shell.MANAGER.sub_object('${n}').jobs()`,               log);
     registerObjectAction(context, 'celebi.objectChanges',   'changes',      n => `shell.MANAGER.sub_object('${n}').changes()`,            log);
@@ -51,6 +51,30 @@ export function registerObjectCommands(context: vscode.ExtensionContext, deps: C
                 if (selected) {
                     await execPython(`shell.MANAGER.sub_object('${objectName}').view('${selected}')`);
                 }
+            } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                vscode.window.showErrorMessage(`Celebi: ${message}`);
+            }
+        })
+    );
+
+    // ---- objectRun: prompt for a command and execute it on the object ----
+    context.subscriptions.push(
+        vscode.commands.registerCommand('celebi.objectRun', async (treeItem?: { objectPath: string }) => {
+            if (!treeItem) return;
+            try {
+                const { objectName } = await getObjectNameFromArg(treeItem);
+                const command = await vscode.window.showInputBox({
+                    prompt: `Run command on ${objectName}`,
+                    placeHolder: 'e.g., .submit() or .ls()'
+                });
+                if (!command) return;
+                const pythonExpr = command.startsWith('.')
+                    ? `shell.MANAGER.sub_object('${escapePythonString(objectName)}')${command}`
+                    : command;
+                await executeAndLog(deps.messageStore, deps.messagePanelProvider,
+                    `run ${objectName}${command.startsWith('.') ? command : ''}`,
+                    () => execPython(pythonExpr));
             } catch (error) {
                 const message = error instanceof Error ? error.message : String(error);
                 vscode.window.showErrorMessage(`Celebi: ${message}`);

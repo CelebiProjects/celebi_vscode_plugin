@@ -15,7 +15,8 @@
   ],
   "main": "./out/extension.js",
   "scripts": {
-    "compile": "tsc -p ."
+    "build:package": "node scripts/build-package.js",
+    "compile": "npm run build:package && tsc -p ."
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",
@@ -292,6 +293,11 @@
         "icon": "$(file-text)"
       },
       {
+        "command": "celebi.objectRun",
+        "title": "Run",
+        "icon": "$(terminal)"
+      },
+      {
         "command": "celebi.clearMessages",
         "title": "Clear DITE Messages",
         "icon": "$(trash)"
@@ -411,9 +417,24 @@
       ],
       "view/item/context": [
         {
-          "command": "celebi.runPythonPackage",
+          "command": "celebi.showLs",
           "when": "view == celebiTreeView && viewItem == task",
-          "group": "inline"
+          "group": "inline@1"
+        },
+        {
+          "command": "celebi.objectRun",
+          "when": "view == celebiTreeView && viewItem == task",
+          "group": "inline@2"
+        },
+        {
+          "command": "celebi.showLs",
+          "when": "view == celebiTreeView && viewItem == algorithm",
+          "group": "inline@1"
+        },
+        {
+          "command": "celebi.objectRun",
+          "when": "view == celebiTreeView && viewItem == algorithm",
+          "group": "inline@2"
         },
         {
           "command": "celebi.showStatus",
@@ -441,24 +462,9 @@
           "group": "inline@1"
         },
         {
-          "command": "celebi.objectTree",
-          "when": "view == celebiTreeView && viewItem == object-view-group",
-          "group": "inline@2"
-        },
-        {
-          "command": "celebi.showLs",
-          "when": "view == celebiTreeView && viewItem == object-view-group",
-          "group": "inline@3"
-        },
-        {
-          "command": "celebi.objectJobs",
-          "when": "view == celebiTreeView && viewItem == object-view-group",
-          "group": "inline@4"
-        },
-        {
           "command": "celebi.viewResults",
           "when": "view == celebiTreeView && viewItem == object-view-group",
-          "group": "inline@5"
+          "group": "inline@2"
         },
         {
           "command": "celebi.submit",
@@ -517,63 +523,33 @@
         },
         {
           "command": "celebi.objectStatus",
-          "when": "view == celebiTreeView && viewItem == info-group",
+          "when": "view == celebiTreeView && viewItem == object-info-group",
           "group": "inline@1"
         },
         {
           "command": "celebi.showLs",
-          "when": "view == celebiTreeView && viewItem == info-group",
+          "when": "view == celebiTreeView && viewItem == object-info-group",
           "group": "inline@2"
         },
         {
           "command": "celebi.objectChanges",
-          "when": "view == celebiTreeView && viewItem == info-group",
+          "when": "view == celebiTreeView && viewItem == object-info-group",
           "group": "inline@3"
         },
         {
           "command": "celebi.objectHistory",
-          "when": "view == celebiTreeView && viewItem == info-group",
+          "when": "view == celebiTreeView && viewItem == object-info-group",
           "group": "inline@4"
         },
         {
           "command": "celebi.objectSubmit",
-          "when": "view == celebiTreeView && viewItem == exec-group",
+          "when": "view == celebiTreeView && viewItem == object-exec-group",
           "group": "inline@1"
         },
         {
-          "command": "celebi.objectJob",
-          "when": "view == celebiTreeView && viewItem == exec-group",
-          "group": "inline@2"
-        },
-        {
-          "command": "celebi.objectResubmit",
-          "when": "view == celebiTreeView && viewItem == exec-group",
-          "group": "inline@3"
-        },
-        {
-          "command": "celebi.objectResults",
-          "when": "view == celebiTreeView && viewItem == exec-group",
-          "group": "inline@4"
-        },
-        {
           "command": "celebi.objectImpress",
-          "when": "view == celebiTreeView && viewItem == exec-group",
-          "group": "inline@5"
-        },
-        {
-          "command": "celebi.objectPre",
-          "when": "view == celebiTreeView && viewItem == exec-group",
-          "group": "inline@6"
-        },
-        {
-          "command": "celebi.objectSuc",
-          "when": "view == celebiTreeView && viewItem == exec-group",
-          "group": "inline@7"
-        },
-        {
-          "command": "celebi.objectCat",
-          "when": "view == celebiTreeView && viewItem == exec-group",
-          "group": "inline@8"
+          "when": "view == celebiTreeView && viewItem == object-exec-group",
+          "group": "inline@2"
         },
         {
           "command": "celebi.submit",

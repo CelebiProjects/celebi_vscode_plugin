@@ -1,0 +1,77 @@
+{
+  "menus": {
+    "view/title": [
+      { "command": "celebi.refreshTree",   "when": "view == celebiTreeView",   "group": "navigation" },
+      { "command": "celebi.showTrace",     "when": "view == celebiTreeView",   "group": "navigation" },
+      { "command": "celebi.clearMessages", "when": "view == diteMessagePanel", "group": "navigation" }
+    ],
+
+    "commandPalette": [
+      { "command": "celebi.refreshDite",     "when": "false" },
+      { "command": "celebi.createTask",      "when": "false" },
+      { "command": "celebi.createAlgorithm",  "when": "false" },
+      { "command": "celebi.createDirectory",  "when": "false" },
+      { "command": "celebi.removeObject",    "when": "false" },
+      { "command": "celebi.showStatus",      "when": "false" },
+      { "command": "celebi.showTree",        "when": "false" },
+      { "command": "celebi.showJobs",        "when": "false" },
+      { "command": "celebi.objectStatus",    "when": "false" },
+      { "command": "celebi.objectTree",      "when": "false" },
+      { "command": "celebi.objectJobs",      "when": "false" },
+      { "command": "celebi.objectChanges",   "when": "false" },
+      { "command": "celebi.objectHistory",   "when": "false" },
+      { "command": "celebi.objectSubmit",    "when": "false" },
+      { "command": "celebi.objectJob",       "when": "false" },
+      { "command": "celebi.objectResubmit",  "when": "false" },
+      { "command": "celebi.objectResults",   "when": "false" },
+      { "command": "celebi.objectImpress",   "when": "false" },
+      { "command": "celebi.objectPre",       "when": "false" },
+      { "command": "celebi.objectSuc",       "when": "false" },
+      { "command": "celebi.objectCat",       "when": "false" },
+      { "command": "celebi.clearMessages",   "when": "false" }
+    ],
+
+    "view/item/context": [
+      { "command": "celebi.showLs",   "when": "view == celebiTreeView && viewItem == task",      "group": "inline@1" },
+      { "command": "celebi.objectRun", "when": "view == celebiTreeView && viewItem == task",      "group": "inline@2" },
+      { "command": "celebi.showLs",   "when": "view == celebiTreeView && viewItem == algorithm", "group": "inline@1" },
+      { "command": "celebi.objectRun", "when": "view == celebiTreeView && viewItem == algorithm", "group": "inline@2" },
+
+      { "command": "celebi.showStatus", "when": "view == celebiTreeView && viewItem == view-group", "group": "inline@1" },
+      { "command": "celebi.showTree",   "when": "view == celebiTreeView && viewItem == view-group", "group": "inline@2" },
+      { "command": "celebi.showLs",     "when": "view == celebiTreeView && viewItem == view-group", "group": "inline@3" },
+      { "command": "celebi.showJobs",   "when": "view == celebiTreeView && viewItem == view-group", "group": "inline@4" },
+
+      { "command": "celebi.objectStatus", "when": "view == celebiTreeView && viewItem == object-view-group", "group": "inline@1" },
+      { "command": "celebi.viewResults",  "when": "view == celebiTreeView && viewItem == object-view-group", "group": "inline@2" },
+
+      { "command": "celebi.submit",        "when": "view == celebiTreeView && viewItem == actions-group", "group": "inline@1" },
+      { "command": "celebi.impress",       "when": "view == celebiTreeView && viewItem == actions-group", "group": "inline@2" },
+      { "command": "celebi.switchProject", "when": "view == celebiTreeView && viewItem == actions-group", "group": "inline@3" },
+      { "command": "celebi.execute",       "when": "view == celebiTreeView && viewItem == actions-group", "group": "inline@4" },
+
+      { "command": "celebi.showTrace",  "when": "view == celebiTreeView && viewItem == git-group", "group": "inline@1" },
+      { "command": "celebi.gitStatus",  "when": "view == celebiTreeView && viewItem == git-group", "group": "inline@2" },
+      { "command": "celebi.gitHistory", "when": "view == celebiTreeView && viewItem == git-group", "group": "inline@3" },
+
+      { "command": "celebi.createTask",      "when": "view == celebiTreeView && (viewItem == project || viewItem == directory)", "group": "inline@1" },
+      { "command": "celebi.createAlgorithm", "when": "view == celebiTreeView && (viewItem == project || viewItem == directory)", "group": "inline@2" },
+      { "command": "celebi.createDirectory", "when": "view == celebiTreeView && (viewItem == project || viewItem == directory)", "group": "inline@3" },
+      { "command": "celebi.removeObject",    "when": "view == celebiTreeView && (viewItem == project || viewItem == directory || viewItem == task || viewItem == algorithm || viewItem == data)", "group": "inline@9" },
+
+      { "command": "celebi.objectStatus",  "when": "view == celebiTreeView && viewItem == object-info-group", "group": "inline@1" },
+      { "command": "celebi.showLs",        "when": "view == celebiTreeView && viewItem == object-info-group", "group": "inline@2" },
+      { "command": "celebi.objectChanges", "when": "view == celebiTreeView && viewItem == object-info-group", "group": "inline@3" },
+      { "command": "celebi.objectHistory", "when": "view == celebiTreeView && viewItem == object-info-group", "group": "inline@4" },
+
+      { "command": "celebi.objectSubmit",  "when": "view == celebiTreeView && viewItem == object-exec-group", "group": "inline@1" },
+      { "command": "celebi.objectImpress", "when": "view == celebiTreeView && viewItem == object-exec-group", "group": "inline@2" },
+
+      { "command": "celebi.submit",    "when": "view == celebiTreeView",                           "group": "1_action@1" },
+      { "command": "celebi.impress",   "when": "view == celebiTreeView && viewItem == algorithm",  "group": "1_action@2" },
+      { "command": "celebi.showTrace", "when": "view == celebiTreeView",                           "group": "2_visualization@1" },
+      { "command": "celebi.gitStatus", "when": "view == celebiTreeView",                           "group": "3_git@1" },
+      { "command": "celebi.gitHistory","when": "view == celebiTreeView",                           "group": "3_git@2" }
+    ]
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "name": "celebi",
+  "displayName": "Celebi",
+  "publisher": "mzhao",
+  "version": "0.0.1",
+  "icon": "media/icon.png",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "*"
+  ],
+  "main": "./out/extension.js",
+  "scripts": {
+    "build:package": "node scripts/build-package.js",
+    "compile": "npm run build:package && tsc -p ."
+  },
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "jest": "^30.3.0",
+    "ts-jest": "^29.4.9",
+    "tslib": "^2.6.2",
+    "typescript": "^5.1.6"
+  },
+  "contributes": {}
+}

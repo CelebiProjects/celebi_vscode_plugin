@@ -146,7 +146,7 @@ export function getDetailHtml(webview: vscode.Webview): string {
   </div>
 </div>
 
-<div id="lightbox" hidden><img id="lightboxImg" alt="preview"></div>
+<div id="lightbox" hidden><img id="lightboxImg" alt=""></div>
 
 <script nonce="${nonce}">
 (function () {
@@ -380,7 +380,10 @@ export function getDetailHtml(webview: vscode.Webview): string {
     });
 
     // Lightbox close
-    $('lightbox').addEventListener('click', () => { $('lightbox').hidden = true; });
+    $('lightbox').addEventListener('click', () => {
+        $('lightbox').hidden = true;
+        $('lightboxImg').src = '';
+    });
 
     // Hide broken plot images. Capture phase: the error event does not bubble,
     // and inline onerror handlers are blocked by the CSP nonce policy.

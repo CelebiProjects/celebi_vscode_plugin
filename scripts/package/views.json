@@ -11,12 +11,6 @@
   "views": {
     "celebiViewContainer": [
       {
-        "id": "diteMessagePanel",
-        "name": "Information",
-        "icon": "media/icon.png",
-        "type": "webview"
-      },
-      {
         "id": "celebiTreeView",
         "name": "Celebi",
         "icon": "media/icon.png"

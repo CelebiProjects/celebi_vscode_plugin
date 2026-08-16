@@ -16,7 +16,8 @@
   "main": "./out/extension.js",
   "scripts": {
     "build:package": "node scripts/build-package.js",
-    "compile": "npm run build:package && tsc -p ."
+    "compile": "npm run build:package && tsc -p .",
+    "test": "jest"
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",

@@ -17,7 +17,6 @@ import {
     buildSelectNodePayload, buildImpressionLoading, buildImpressionReady,
     buildImpressionError, NodeDetail,
 } from './webview/detailMessages';
-import { TreeNode } from './tree/treeBuilder';
 
 export function activate(context: vscode.ExtensionContext): void {
     const projectRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
@@ -60,19 +59,12 @@ export function activate(context: vscode.ExtensionContext): void {
             detail.show(buildImpressionReady(items, status.status, status.details, workflow));
         },
         onNavigate: async (targetPath) => {
-            const node = provider.getNodeById(targetPath);
-            if (!node) return;
-            await treeView.reveal(toItemFor(node), { select: true, focus: true });
+            const item = provider.getItemById(targetPath);
+            if (!item) return;
+            await treeView.reveal(item, { select: true, focus: true });
         },
     });
     context.subscriptions.push(detail);
-
-    function toItemFor(node: TreeNode): CelebiTreeItem {
-        const collapsible = node.children.length > 0
-            ? vscode.TreeItemCollapsibleState.Collapsed
-            : vscode.TreeItemCollapsibleState.None;
-        return new CelebiTreeItem(node, collapsible);
-    }
 
     // -- Selection → detail payload --
     treeView.onDidChangeSelection(async (e) => {

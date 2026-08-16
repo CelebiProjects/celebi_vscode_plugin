@@ -9,7 +9,7 @@ import * as vscode from 'vscode';
 import { CelebiTreeItem } from '../treeItem';
 import { runCelebiPython, ProjectData } from '../celebiScript';
 import {
-    buildObjectTree, mergeFilesIntoTree, buildTypeMap, findNodeByPath,
+    buildObjectTree, mergeFilesIntoTree, buildTypeMap, findParent,
     TreeNode, ObjectRecord, FileRecord,
 } from './treeBuilder';
 
@@ -23,6 +23,7 @@ function toItem(node: TreeNode): CelebiTreeItem {
 export class CelebiTreeProvider implements vscode.TreeDataProvider<CelebiTreeItem> {
     private root: TreeNode = buildObjectTree([]);
     private typeMap: Record<string, string> = {};
+    private itemCache = new Map<string, CelebiTreeItem>();
     error: string | null = null;
 
     private _onDidChangeTreeData = new vscode.EventEmitter<CelebiTreeItem | undefined | void>();
@@ -41,16 +42,27 @@ export class CelebiTreeProvider implements vscode.TreeDataProvider<CelebiTreeIte
                     id: '__error__', name: this.error, type: 'directory',
                     icon: 'error', iconColor: 'red', celebiType: null, data: {}, children: [],
                 };
-                return [toItem(errorNode)];
+                return [this.cachedItem(errorNode)];
             }
-            return this.root.children.map(toItem);
+            return this.root.children.map((child) => this.cachedItem(child));
         }
-        return element.node.children.map(toItem);
+        return element.node.children.map((child) => this.cachedItem(child));
+    }
+
+    /** Create-or-reuse the item for a node — stable identity across getChildren calls. */
+    private cachedItem(node: TreeNode): CelebiTreeItem {
+        let item = this.itemCache.get(node.id);
+        if (!item) {
+            item = toItem(node);
+            this.itemCache.set(node.id, item);
+        }
+        return item;
     }
 
     /** Re-run the Python script and rebuild the tree. */
     async refresh(): Promise<void> {
         this.error = null;
+        this.itemCache.clear();
         try {
             const data = (await runCelebiPython('project', this.projectRoot)) as ProjectData;
             this.root = buildObjectTree(data.objects as ObjectRecord[]);
@@ -64,12 +76,22 @@ export class CelebiTreeProvider implements vscode.TreeDataProvider<CelebiTreeIte
         this._onDidChangeTreeData.fire();
     }
 
-    getTypeMap(): Record<string, string> {
-        return { ...this.typeMap };
+    /** Cached tree item for a node id, if the tree has materialized it. */
+    getItemById(id: string): CelebiTreeItem | undefined {
+        return this.itemCache.get(id);
     }
 
-    getNodeById(id: string): TreeNode | undefined {
-        return findNodeByPath(this.root, id) ?? undefined;
+    getParent(element: CelebiTreeItem): vscode.ProviderResult<CelebiTreeItem> {
+        const id = element.nodeId;
+        if (id === '__root__' || id === '__error__') return undefined;
+        const parent = findParent(this.root, id);
+        // Top-level items report '__root__' as parent — not a materialized
+        // element, so returning undefined is correct.
+        return parent ? this.itemCache.get(parent.id) : undefined;
+    }
+
+    getTypeMap(): Record<string, string> {
+        return { ...this.typeMap };
     }
 
     getProjectRoot(): string {

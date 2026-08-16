@@ -31,4 +31,10 @@ describe('getDetailHtml', () => {
         expect(html).toContain('selectImpression');
         expect(html).toContain('navigateToPath');
     });
+    test('hides broken plot images via capture-phase listener, not inline onerror', () => {
+        const html = getDetailHtml(stubWebview as never);
+        expect(html).not.toContain('onerror=');
+        expect(html).toContain("addEventListener('error',");
+        expect(html).toContain(', true);');
+    });
 });

@@ -351,7 +351,7 @@ export function getDetailHtml(webview: vscode.Webview): string {
         $('resultsStatus').textContent = '';
         $('resultGrid').innerHTML = items.map((item) => {
             if (item.is_plot) {
-                return '<img class="resultImage" alt="' + esc(item.name) + '" src="' + esc(item.url) + '" data-url="' + esc(item.url) + '" data-name="' + esc(item.name) + '" onerror="this.style.display=\\'none\\'">';
+                return '<img class="resultImage" alt="' + esc(item.name) + '" src="' + esc(item.url) + '" data-url="' + esc(item.url) + '" data-name="' + esc(item.name) + '">';
             }
             return '<div class="resultFile"><span>📄</span><a class="resultFileLink" href="' + esc(item.url) + '" target="_blank" rel="noopener noreferrer">' + esc(item.name) + '</a></div>';
         }).join('');
@@ -378,6 +378,14 @@ export function getDetailHtml(webview: vscode.Webview): string {
 
     // Lightbox close
     $('lightbox').addEventListener('click', () => { $('lightbox').hidden = true; });
+
+    // Hide broken plot images. Capture phase: the error event does not bubble,
+    // and inline onerror handlers are blocked by the CSP nonce policy.
+    document.addEventListener('error', (e) => {
+        if (e.target.classList.contains('resultImage')) {
+            e.target.style.display = 'none';
+        }
+    }, true);
 
     // Collapsible headers
     $('readmeSection').querySelector('.collapseHeader').addEventListener('click', () => {

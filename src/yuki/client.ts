@@ -29,6 +29,10 @@ export interface ImpressionFile {
     url: string;
     project_uuid: string;
     impression: string;
+    /** True when the file is still stored on the runner. */
+    in_runner: boolean;
+    /** True when the file has been downloaded into Yuki storage. */
+    in_yuki: boolean;
 }
 
 export interface ImpressionStatus {
@@ -142,6 +146,8 @@ export class YukiClient {
             url: String(e.url || e.href || e.src || buildFileUrl(this._baseUrl, projectUuid, impression, filePath)),
             project_uuid: String(e.project_uuid || projectUuid),
             impression: String(e.impression || impression),
+            in_runner: Boolean(e.in_runner),
+            in_yuki: Boolean(e.in_yuki),
         };
     }
 
@@ -160,5 +166,15 @@ export class YukiClient {
     async fetchImpressionWorkflow(projectUuid: string, impression: string): Promise<string> {
         const data = await this.request('get', `/workflow/${encodePath(projectUuid)}/${encodePath(impression)}`);
         return typeof data === 'string' ? data.trim() : '';
+    }
+
+    /** Probe DITE health (/dite-status endpoint). */
+    async fetchDiteStatus(): Promise<'connected' | 'unconnected'> {
+        try {
+            const data = await this.request('get', '/dite-status');
+            return typeof data === 'string' && data.trim() === 'ok' ? 'connected' : 'unconnected';
+        } catch {
+            return 'unconnected';
+        }
     }
 }

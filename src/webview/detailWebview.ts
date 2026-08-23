@@ -5,6 +5,7 @@
  * every tree selection. Incoming messages are validated by
  * detailMessages.parseWebviewMessage before hitting the callbacks.
  */
+import * as path from 'path';
 import * as vscode from 'vscode';
 import { getDetailHtml } from './detailHtml';
 import { ExtensionToWebview, parseWebviewMessage } from './detailMessages';
@@ -20,7 +21,10 @@ export class DetailWebviewProvider implements vscode.Disposable {
     private panel: vscode.WebviewPanel | undefined;
     private readonly disposables: vscode.Disposable[] = [];
 
-    constructor(private readonly callbacks: DetailWebviewCallbacks) {}
+    constructor(
+        private readonly callbacks: DetailWebviewCallbacks,
+        private readonly extensionPath: string,
+    ) {}
 
     /** Create (once) and push a payload into the panel. */
     show(payload: ExtensionToWebview): void {
@@ -34,7 +38,10 @@ export class DetailWebviewProvider implements vscode.Disposable {
                     retainContextWhenHidden: true,
                 }
             );
-            this.panel.webview.html = getDetailHtml(this.panel.webview);
+            const scriptUri = this.panel.webview.asWebviewUri(
+                vscode.Uri.file(path.join(this.extensionPath, 'media', 'detail.js'))
+            );
+            this.panel.webview.html = getDetailHtml(this.panel.webview, scriptUri);
             this.panel.webview.onDidReceiveMessage((raw: unknown) => {
                 const msg = parseWebviewMessage(raw);
                 if (!msg) return;

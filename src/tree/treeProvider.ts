@@ -20,10 +20,14 @@ function toItem(node: TreeNode): CelebiTreeItem {
     return new CelebiTreeItem(node, collapsible);
 }
 
+/** DITE connection state shown at the top of the tree. */
+export type DiteStatus = 'connected' | 'unconnected';
+
 export class CelebiTreeProvider implements vscode.TreeDataProvider<CelebiTreeItem> {
     private root: TreeNode = buildObjectTree([]);
     private typeMap: Record<string, string> = {};
     private itemCache = new Map<string, CelebiTreeItem>();
+    private diteStatus: DiteStatus | null = null;
     error: string | null = null;
 
     private _onDidChangeTreeData = new vscode.EventEmitter<CelebiTreeItem | undefined | void>();
@@ -44,9 +48,45 @@ export class CelebiTreeProvider implements vscode.TreeDataProvider<CelebiTreeIte
                 };
                 return [this.cachedItem(errorNode)];
             }
-            return this.root.children.map((child) => this.cachedItem(child));
+            const diteItem = this.diteStatusItem();
+            const children = this.root.children.map((child) => this.cachedItem(child));
+            return diteItem ? [diteItem, ...children] : children;
         }
         return element.node.children.map((child) => this.cachedItem(child));
+    }
+
+    /** Update the DITE status row at the top of the tree. */
+    setDiteStatus(status: DiteStatus): void {
+        if (this.diteStatus === status) return;
+        this.diteStatus = status;
+        this._onDidChangeTreeData.fire();
+    }
+
+    /** The DITE status row: computer icon, green when connected, red when not. */
+    private diteStatusItem(): CelebiTreeItem | null {
+        if (!this.diteStatus) return null;
+        const id = '__dite_status__';
+        let item = this.itemCache.get(id);
+        if (!item) {
+            const node: TreeNode = {
+                id, name: 'DITE', type: 'directory',
+                icon: 'vm', iconColor: '', celebiType: null, data: {}, children: [],
+            };
+            item = toItem(node);
+            this.itemCache.set(id, item);
+        }
+        const connected = this.diteStatus === 'connected';
+        item.label = connected ? 'DITE: connected' : 'DITE: unconnected';
+        item.iconPath = new vscode.ThemeIcon(
+            connected ? 'vm-active' : 'vm-outline',
+            new vscode.ThemeColor(connected ? 'testing.iconPassed' : 'testing.iconFailed')
+        );
+        item.command = {
+            title: 'Refresh DITE Status',
+            command: 'celebi.refreshDite',
+            tooltip: 'Refresh DITE connection status',
+        };
+        return item;
     }
 
     /** Create-or-reuse the item for a node — stable identity across getChildren calls. */

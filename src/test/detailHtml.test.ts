@@ -2,20 +2,24 @@ import { getDetailHtml } from '../webview/detailHtml';
 
 const stubWebview = {
     cspSource: 'vscode-webview://csp',
+    asWebviewUri: (uri: { toString: () => string }) => uri.toString(),
 };
+
+const stubScriptUri = { toString: () => 'file:///ext/media/detail.js' };
 
 describe('getDetailHtml', () => {
     test('contains CSP allowing http images and nonce script', () => {
-        const html = getDetailHtml(stubWebview as never);
+        const html = getDetailHtml(stubWebview as never, stubScriptUri as never);
         expect(html).toContain('default-src \'none\'');
         expect(html).toContain('img-src');
         expect(html).toContain('http:');
         expect(html).toContain('https:');
         expect(html).toContain('data:');
-        expect(html).toContain("script-src 'nonce-");
+        expect(html).toContain('script-src ');
+        expect(html).toContain('nonce-');
     });
     test('renders all DetailPanel sections', () => {
-        const html = getDetailHtml(stubWebview as never);
+        const html = getDetailHtml(stubWebview as never, stubScriptUri as never);
         for (const marker of [
             'id="emptyState"', 'id="typeLabel"', 'id="impressionSelect"',
             'id="readmeSection"', 'id="statusSection"', 'id="predecessorsSection"',
@@ -25,16 +29,14 @@ describe('getDetailHtml', () => {
             expect(html).toContain(marker);
         }
     });
-    test('contains acquireVsCodeApi wiring', () => {
-        const html = getDetailHtml(stubWebview as never);
-        expect(html).toContain('acquireVsCodeApi()');
-        expect(html).toContain('selectImpression');
-        expect(html).toContain('navigateToPath');
+    test('loads detail script from external file', () => {
+        const html = getDetailHtml(stubWebview as never, stubScriptUri as never);
+        expect(html).toContain('src="file:///ext/media/detail.js"');
+        expect(html).toContain('<script');
+        expect(html).not.toContain('acquireVsCodeApi()');
     });
-    test('hides broken plot images via capture-phase listener, not inline onerror', () => {
-        const html = getDetailHtml(stubWebview as never);
+    test('does not contain inline onerror handlers', () => {
+        const html = getDetailHtml(stubWebview as never, stubScriptUri as never);
         expect(html).not.toContain('onerror=');
-        expect(html).toContain("addEventListener('error',");
-        expect(html).toContain(', true);');
     });
 });

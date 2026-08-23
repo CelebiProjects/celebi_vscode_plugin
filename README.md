@@ -1,24 +1,22 @@
 # Celebi VS Code Extension
 
-A VS Code extension for interacting with the [CelebiChrono](https://github.com/celebi) project management and execution system.
+A VS Code extension for browsing [CelebiChrono](https://github.com/celebi) projects and viewing task results.
 
 ## Features
 
-- **Dynamic Project Tree**: Browse your Celebi project structure (Projects → Algorithms/Tasks/Data)
-- **Command Execution**: Run shell commands with output displayed in VS Code
-- **Task Submission**: Submit tasks directly from the tree view
-- **Impression Management**: Create impressions with input dialogs
-- **Project Switching**: Quick-switch between projects
-- **Trace Visualization**: Visualize dependency DAG in a webview panel
-- **Git Integration**: View changes and history
-- **Status Bar**: Shows current project name
-- **Auto-refresh**: Tree automatically refreshes when files change
+- **Dynamic Project Tree**: Browse your Celebi project structure (Projects → Algorithms/Tasks/Data + workspace files)
+- **Detail Webview**: Click any node to see its metadata, README, parameters, commands, predecessors/successors, and task results
+- **Task Results**: Automatically fetch job status and output files (plots, data, logs) from the DITE server for submitted tasks
+- **Impression Selector**: Switch between historical impressions of a task
+- **Auto-refresh**: Tree automatically refreshes when project files change
+- **Manual Refresh**: Refresh the tree from the view title action
 
 ## Requirements
 
 - VS Code 1.85.0 or higher
-- Python with CelebiChrono package installed
-- (Optional) Virtual environment with CelebiChrono
+- A Celebi project opened as the workspace folder
+- CelebiChrono Python package installed in the active Python environment
+- DITE server running (default: `http://127.0.0.1:3315`) for task results
 
 ## Configuration
 
@@ -27,7 +25,7 @@ This extension contributes the following settings:
 * `celebi.pythonPath`: Path to Python interpreter (auto-detected from virtualenv if empty)
 * `celebi.virtualenvPath`: Path to Python virtualenv directory (auto-detected if empty)
 * `celebi.packagePath`: Optional path to CelebiChrono package
-* `celebi.projectPath`: Optional default project path
+* `celebi.diteServerUrl`: DITE server URL used when the project has no `.celebi/hosts.json`
 
 ### Virtual Environment Auto-Detection
 
@@ -39,51 +37,27 @@ The extension automatically detects virtual environments in the following order:
 ## Usage
 
 1. Open a Celebi project in VS Code
-2. Open the Celebi view in the Activity Bar
-3. The extension will auto-detect your virtualenv and project structure
-4. Use the tree view to:
-   - View project status
-   - Submit tasks
-   - Create impressions
-   - Switch projects
-   - Execute arbitrary commands
-   - View trace visualization
+2. Open the **Celebi** view in the Activity Bar
+3. The extension builds the project tree from CelebiChrono
+4. Click a node to explore its details in the main editor area
+5. Click a submitted task to see its job status and result files
 
 ## Commands
 
 | Command | Description |
 |---------|-------------|
-| `celebi.runPythonPackage` | Execute Python expression |
-| `celebi.runInTerminal` | Execute in integrated terminal |
-| `celebi.showOutput` | Show output channel |
-| `celebi.refreshTree` | Refresh tree view |
-| `celebi.submit` | Submit task |
-| `celebi.impress` | Impress object |
-| `celebi.switchProject` | Switch project |
-| `celebi.execute` | Execute arbitrary shell function |
-| `celebi.showTrace` | Show dependency trace |
-| `celebi.gitStatus` | Show git status |
-| `celebi.gitHistory` | Show git history |
-
-## Release Notes
-
-### 0.0.1
-
-Initial release with:
-- Dynamic tree view showing project structure
-- Virtualenv auto-detection
-- Command execution with output channel
-- Task submission and impression creation
-- Project switching
-- Trace visualization
-- Git integration
-- Status bar and file watchers
+| `celebi.refreshTree` | Refresh the Celebi tree view |
 
 ## Development
 
 - `npm run compile` - Compile TypeScript
-- Press `F5` to launch Extension Development Host
+- `npm run test` - Run the test suite
+- Press `F5` to launch the Extension Development Host
+
+## Release Notes
+
+See [CHANGELOG.md](./CHANGELOG.md).
 
 ## License
 
-See LICENSE file for details.
+MIT

@@ -28,8 +28,8 @@ describe('YukiClient.fetchImpressionResults', () => {
             calls.push(url);
             if (url.includes('/collect/')) return Promise.resolve(jsonResponse(null));
             return Promise.resolve(jsonResponse([
-                { name: 'plot.png', path: 'figs/plot.png', is_plot: true },
-                { name: 'out.root', path: 'out.root' },
+                { name: 'plot.png', path: 'figs/plot.png', is_plot: true, in_runner: true, in_yuki: false },
+                { name: 'out.root', path: 'out.root', in_runner: true, in_yuki: true },
             ]));
         };
         const client = new YukiClient('http://127.0.0.1:3315', fetchImpl as never);
@@ -41,6 +41,10 @@ describe('YukiClient.fetchImpressionResults', () => {
         expect(items[0].is_plot).toBe(true);
         expect(items[0].url).toBe('http://127.0.0.1:3315/export/proj-uuid/impr-1/figs/plot.png');
         expect(items[1].is_plot).toBe(false);
+        expect(items[0].in_runner).toBe(true);
+        expect(items[0].in_yuki).toBe(false);
+        expect(items[1].in_runner).toBe(true);
+        expect(items[1].in_yuki).toBe(true);
     });
 
     test('plots are sorted before other files', async () => {
@@ -109,6 +113,24 @@ describe('YukiClient status and workflow', () => {
         const fetchImpl = () => Promise.reject(new Error('down'));
         const client = new YukiClient('http://127.0.0.1:3315', fetchImpl as never);
         await expect(client.fetchImpressionWorkflow('p', 'i')).rejects.toThrow();
+    });
+
+    test('fetchDiteStatus returns connected on ok response', async () => {
+        const fetchImpl = () => Promise.resolve(jsonResponse('ok'));
+        const client = new YukiClient('http://127.0.0.1:3315', fetchImpl as never);
+        expect(await client.fetchDiteStatus()).toBe('connected');
+    });
+
+    test('fetchDiteStatus returns unconnected on non-ok response', async () => {
+        const fetchImpl = () => Promise.resolve(jsonResponse('not ok'));
+        const client = new YukiClient('http://127.0.0.1:3315', fetchImpl as never);
+        expect(await client.fetchDiteStatus()).toBe('unconnected');
+    });
+
+    test('fetchDiteStatus returns unconnected on error', async () => {
+        const fetchImpl = () => Promise.reject(new Error('down'));
+        const client = new YukiClient('http://127.0.0.1:3315', fetchImpl as never);
+        expect(await client.fetchDiteStatus()).toBe('unconnected');
     });
 });
 

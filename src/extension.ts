@@ -38,23 +38,32 @@ export function activate(context: vscode.ExtensionContext): void {
     const treeView = vscode.window.createTreeView('celebiTreeView', {
         treeDataProvider: provider,
     });
+
+    const updateDiteStatus = async (): Promise<void> => {
+        provider.setDiteStatus(await yuki.fetchDiteStatus());
+    };
+
     context.subscriptions.push(
         treeView,
-        vscode.commands.registerCommand('celebi.refreshTree', () => provider.refresh())
+        vscode.commands.registerCommand('celebi.refreshTree', async () => {
+            await provider.refresh();
+            void updateDiteStatus();
+        }),
+        vscode.commands.registerCommand('celebi.refreshDite', () => void updateDiteStatus())
     );
 
     // -- Detail webview --
     // Selection sequence token: async detail payloads from a stale selection
     // must not overwrite newer ones.
     let selectionSeq = 0;
-    const detail = new DetailWebviewProvider({
-        onSelectImpression: async (impression) => {
-            const mySeq = selectionSeq;
-            if (!meta.projectUuid) {
-                detail.show(buildImpressionError('Project UUID missing — cannot load results.'));
-                return;
-            }
-            detail.show(buildImpressionLoading());
+
+    const loadImpression = async (impression: string, mySeq: number): Promise<void> => {
+        if (!meta.projectUuid) {
+            detail.show(buildImpressionError('Project UUID missing — cannot load results.'));
+            return;
+        }
+        detail.show(buildImpressionLoading());
+        try {
             const [items, status, workflow] = await Promise.all([
                 yuki.fetchImpressionResults(meta.projectUuid, impression),
                 yuki.fetchImpressionStatus(meta.projectUuid, impression),
@@ -62,13 +71,23 @@ export function activate(context: vscode.ExtensionContext): void {
             ]);
             if (mySeq !== selectionSeq) return;
             detail.show(buildImpressionReady(items, status.status, status.details, workflow));
+        } catch (err) {
+            if (mySeq !== selectionSeq) return;
+            const message = err instanceof Error ? err.message : String(err);
+            detail.show(buildImpressionError(message));
+        }
+    };
+
+    const detail = new DetailWebviewProvider({
+        onSelectImpression: async (impression) => {
+            await loadImpression(impression, selectionSeq);
         },
         onNavigate: async (targetPath) => {
             const item = provider.getItemById(targetPath);
             if (!item) return;
             await treeView.reveal(item, { select: true, focus: true });
         },
-    });
+    }, context.extensionPath);
     context.subscriptions.push(detail);
 
     // -- Selection → detail payload --
@@ -81,6 +100,9 @@ export function activate(context: vscode.ExtensionContext): void {
     const showDetail = async (item: CelebiTreeItem): Promise<void> => {
         const mySeq = ++selectionSeq;
         const node = item.node;
+
+        // Status/error rows are not explorable objects — skip the detail panel.
+        if (node.id === '__dite_status__' || node.id === '__error__') return;
 
         if (node.type === 'file') {
             const fileData = node.data as Record<string, unknown>;
@@ -121,12 +143,10 @@ export function activate(context: vscode.ExtensionContext): void {
             nodeDetail, mergedConfig, readme, provider.getTypeMap(), meta.projectUuid
         ));
 
-        // Auto-fetch job status for the default impression (results load on demand)
+        // Auto-fetch results for the default impression when a task is selected
         const impression = mergedConfig.impression as string | undefined;
         if (node.celebiType === 'task' && impression && meta.projectUuid) {
-            const status = await yuki.fetchImpressionStatus(meta.projectUuid, impression);
-            if (mySeq !== selectionSeq) return;
-            detail.show(buildImpressionReady([], status.status, status.details, ''));
+            await loadImpression(impression, mySeq);
         }
     }
 
@@ -144,7 +164,7 @@ export function activate(context: vscode.ExtensionContext): void {
     watcher.onDidDelete(scheduleRefresh);
     context.subscriptions.push(watcher);
 
-    void provider.refresh();
+    void provider.refresh().then(() => void updateDiteStatus());
 }
 
 export function deactivate(): void { /* nothing to clean up */ }

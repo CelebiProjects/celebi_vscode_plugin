@@ -48,7 +48,23 @@ for (const section of sections) {
 const out = path.join(root, 'package.json');
 fs.writeFileSync(out, JSON.stringify(base, null, '  ') + '\n');
 
+// JSROOT runs inside the webview. node_modules is excluded from the VSIX, so
+// copy the browser bundle into the packaged media directory during every build.
+const vendorDir = path.join(root, 'media', 'vendor');
+fs.mkdirSync(vendorDir, { recursive: true });
+fs.copyFileSync(
+  path.join(root, 'node_modules', 'jsroot', 'build', 'jsroot.min.js'),
+  path.join(vendorDir, 'jsroot.min.js')
+);
+
 // Count items for summary
+// The main bundle dynamically imports these when reading compressed ROOT data.
+fs.mkdirSync(path.join(vendorDir, 'base'), { recursive: true });
+for (const codec of ['zstd.mjs', 'lzma.mjs']) {
+  fs.copyFileSync(path.join(root, 'node_modules', 'jsroot', 'modules', 'base', codec),
+    path.join(vendorDir, 'base', codec));
+}
+
 const commands = base.contributes.commands?.length || 0;
 const contextItems = base.contributes.menus?.['view/item/context']?.length || 0;
-console.log(`package.json built: ${commands} commands, ${contextItems} context menu items`);
+console.log(`package.json built: ${commands} commands, ${contextItems} context menu items; JSROOT copied`);

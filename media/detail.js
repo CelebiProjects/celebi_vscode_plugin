@@ -4,6 +4,35 @@
     const TYPE_COLORS = { task: '#f97316', algorithm: '#3b82f6', data: '#22c55e', directory: '#eab308' };
 
     let current = null;
+    let currentSelection = 0;
+    // Keep drafts when changing selection or receiving the second detail payload.
+    const editableFiles = [
+        { id: 'readme', message: 'Readme', name: 'README.md', drafts: new Map() },
+        { id: 'yaml', message: 'Yaml', name: 'celebi.yaml', drafts: new Map() },
+    ];
+
+    function renderEditableFile(file) {
+        const { id, message, name } = file;
+        const draft = file.drafts.get(current.node.id);
+        const isFile = current.node.kind === 'file' && current.node.name === name && current.file?.kind === 'text';
+        const text = isFile ? current.file.content : id === 'readme' ? current.readme : current.node.data?.celebiYaml;
+        $(id + 'Section').hidden = !draft && typeof text !== 'string';
+        if (id === 'yaml') $(id + 'Box').innerHTML = window.renderCelebiYaml(text || '');
+        else $(id + 'Box').textContent = text || '';
+        $(id + 'Box').hidden = !!draft;
+        $('edit' + message).hidden = !!draft;
+        $('edit' + message).disabled = typeof text !== 'string';
+        $(id + 'EditForm').hidden = !draft;
+        $(id + 'Status').textContent = draft?.error || (draft?.loading ? 'Loading…' : draft?.saving ? 'Saving…' : draft ? 'Unsaved draft'
+            : id === 'yaml' && typeof text !== 'string' ? current.node.data?.celebiYamlError || (text === null ? 'No celebi.yaml in this directory.' : 'Loading…') : '');
+        if (draft) {
+            $(id + 'Editor').value = draft.content;
+            $(id + 'Editor').disabled = draft.loading || draft.saving;
+            $('save' + message).disabled = draft.loading || draft.saving || !draft.session;
+            $('cancel' + message).disabled = draft.loading || draft.saving;
+        }
+        return isFile;
+    }
 
     function esc(text) {
         const div = document.createElement('div');
@@ -13,7 +42,7 @@
 
     function hideAllSections() {
         for (const id of ['impressionIdSection', 'readmeSection', 'statusSection',
-            'predecessorsSection', 'successorsSection', 'objectInfoSection',
+            'predecessorsSection', 'successorsSection', 'yamlSection',
             'contentsSection', 'resultsSection', 'fileInfoSection', 'previewSection']) {
             $(id).hidden = true;
         }
@@ -27,6 +56,7 @@
 
     function renderNode(msg) {
         current = msg;
+        currentSelection += 1;
         hideAllSections();
         $('emptyState').hidden = true;
         $('detail').hidden = false;
@@ -68,11 +98,12 @@
             $('impressionId').textContent = selectedImpression;
         }
 
-        // README
-        if (msg.readme) {
-            $('readmeSection').hidden = false;
-            $('readmeBox').textContent = msg.readme;
-            $('readmeArrow').textContent = '▾';
+        // Render the actual project files and preserve any in-progress drafts.
+        let isEditableFile = false;
+        for (const file of editableFiles) {
+            isEditableFile = renderEditableFile(file) || isEditableFile;
+            $(file.id + 'Content').hidden = false;
+            $(file.id + 'Arrow').textContent = '▾';
         }
 
         // Predecessors / Successors
@@ -90,39 +121,6 @@
             $('successorsBox').hidden = true;
         }
 
-        // Object info
-        if (msg.node.kind === 'object') {
-            $('objectInfoSection').hidden = false;
-            const data = msg.node.data || {};
-            const params = data.parameters && typeof data.parameters === 'object' ? data.parameters : {};
-            $('paramList').innerHTML = Object.entries(params).map(([k, v]) =>
-                '<div class="paramKey">' + esc(k) + '</div><div>' + esc(v) + '</div>'
-            ).join('');
-            const rows = [];
-            if (data.environment) rows.push('<div><strong>Environment:</strong> ' + esc(data.environment) + '</div>');
-            if (data.memory_limit) rows.push('<div><strong>Memory Limit:</strong> ' + esc(data.memory_limit) + '</div>');
-            if (data.default_runner) rows.push('<div><strong>Default runner:</strong> ' + esc(data.default_runner) + '</div>');
-            if (Array.isArray(data.aliases) && data.aliases.length > 0) rows.push('<div><strong>Aliases:</strong> ' + esc(data.aliases.join(', ')) + '</div>');
-            $('infoRows').innerHTML = rows.join('');
-            const codeFiles = Array.isArray(data.code_files) ? data.code_files : [];
-            $('codeFilesBox').innerHTML = codeFiles.length > 0
-                ? '<h4>Algorithm files</h4><ul>' + codeFiles.map((f) =>
-                    '<li>' + esc(typeof f === 'string' ? f : (f.name || f.path) + ': ' + (f.code || '')) + '</li>'
-                ).join('') + '</ul>'
-                : '';
-            const commands = Array.isArray(data.commands) ? data.commands : [];
-            const commandsPre = $('commandsBox');
-            if (commands.length > 0) {
-                commandsPre.innerHTML = '<h4>Commands</h4>';
-                const pre = document.createElement('pre');
-                pre.className = 'commandsPre';
-                pre.textContent = commands.join('\n');
-                commandsPre.appendChild(pre);
-            } else {
-                commandsPre.innerHTML = '';
-            }
-        }
-
         // Contents count fallback
         if (!msg.readme) {
             $('contentsSection').hidden = false;
@@ -137,7 +135,7 @@
                 '<div><strong>Path:</strong> ' + esc(f.name || msg.node.name) + '</div>' +
                 '<div><strong>Size:</strong> ' + esc(f.size?.human_readable || f.size?.raw || '—') + '</div>' +
                 '<div><strong>Modified:</strong> ' + esc(f.lastModified || '—') + '</div>';
-            $('previewSection').hidden = false;
+            $('previewSection').hidden = isEditableFile;
             $('previewBox').innerHTML = renderPreview(msg.file);
         }
 
@@ -152,7 +150,8 @@
     function relationTag(path, typeMap) {
         const type = typeMap && typeMap[path];
         const color = TYPE_COLORS[type] || null;
-        const style = color ? 'style="background:' + color + '15;color:' + color + ';border-color:' + color + '40"' : '';
+        const style = color ? 'style="background:' + color + '15;color:' + color + ';border-color:' + color + '40"' :
+            'style="color:var(--vscode-textLink-foreground);border-color:var(--vscode-textLink-foreground)"';
         return '<span class="relationTag" data-path="' + esc(path) + '" ' + style + ' role="button" tabindex="0">' + esc(path) + '</span>';
     }
 
@@ -167,18 +166,24 @@
         if (file.kind === 'pdf') {
             return '<p class="unsupported">PDF preview not available. Open the file externally to view.</p>';
         }
+        if (file.kind === 'root') {
+            return '<button class="openRootButton" data-local-root-path="' + esc(current.node.id) + '">Open ROOT viewer</button>';
+        }
         return '<p class="unsupported">Preview not available for .' + esc(file.ext) + ' files. Open externally to view.</p>';
     }
 
     function renderResults(msg) {
         if (!current || current.node.celebiType !== 'task') return;
+        if (msg.nodeId !== undefined && msg.nodeId !== current.node.id) return;
         $('resultsSection').hidden = false;
         if (msg.state === 'loading') {
             $('resultsStatus').textContent = 'Loading results...';
+            $('resultGrid').innerHTML = '';
             return;
         }
         if (msg.state === 'error') {
             $('resultsStatus').innerHTML = '<p class="unsupported">' + esc(msg.error) + '</p>';
+            $('resultGrid').innerHTML = '';
             return;
         }
 
@@ -207,16 +212,17 @@
         }
         $('resultsStatus').textContent = '';
         $('resultGrid').innerHTML = items.map((item) => {
-            // ✓ = cached in Yuki; ⬇ = only on the runner, downloadable
-            const status = item.in_yuki
-                ? '<span class="resultStatusIcon inYuki" title="In Yuki">✓</span>'
-                : '<span class="resultStatusIcon notYuki" title="Not in Yuki — download from runner">⬇</span>';
             if (item.is_plot) {
-                return '<div class="resultItem">' + status +
-                    '<img class="resultImage" alt="' + esc(item.name) + '" src="' + esc(item.url) + '" data-url="' + esc(item.url) + '" data-name="' + esc(item.name) + '">' +
+                return '<div class="resultItem">' +
+                    '<img class="resultImage" alt="' + esc(item.name) + '" data-url="' + esc(item.url) + '" data-name="' + esc(item.name) + '" loading="lazy">' +
                     '</div>';
             }
-            return '<div class="resultItem">' + status +
+            if (/\.root$/i.test(item.name) || /\.root(?:[?#]|$)/i.test(item.url)) {
+                return '<div class="resultItem">' +
+                    '<div class="resultFile"><span>📊</span><button class="resultFileLink rootFileLink" data-url="' + esc(item.url) + '" data-name="' + esc(item.name) + '">' + esc(item.name) + '</button></div>' +
+                    '</div>';
+            }
+            return '<div class="resultItem">' +
                 '<div class="resultFile"><span>📄</span><a class="resultFileLink" href="' + esc(item.url) + '" target="_blank" rel="noopener noreferrer">' + esc(item.name) + '</a></div>' +
                 '</div>';
         }).join('');
@@ -240,6 +246,20 @@
         if (img) {
             $('lightboxImg').src = img.dataset.url;
             $('lightbox').hidden = false;
+            return;
+        }
+        const remoteRoot = e.target.closest('.rootFileLink');
+        if (remoteRoot) {
+            vscode.postMessage({
+                type: 'openRemoteRootFile',
+                name: remoteRoot.dataset.name,
+                url: remoteRoot.dataset.url,
+            });
+            return;
+        }
+        const localRoot = e.target.closest('.openRootButton');
+        if (localRoot) {
+            vscode.postMessage({ type: 'openLocalRootFile', path: localRoot.dataset.localRootPath });
         }
     });
 
@@ -258,11 +278,44 @@
     }, true);
 
     // Collapsible headers
-    $('readmeSection').querySelector('.collapseHeader').addEventListener('click', () => {
-        const box = $('readmeBox');
-        box.hidden = !box.hidden;
-        $('readmeArrow').textContent = box.hidden ? '▸' : '▾';
-    });
+    for (const file of editableFiles) {
+        const { id, message, drafts } = file;
+        $(id + 'Section').querySelector('.collapseHeader').addEventListener('click', () => {
+            const box = $(id + 'Content');
+            box.hidden = !box.hidden;
+            $(id + 'Arrow').textContent = box.hidden ? '▸' : '▾';
+        });
+        $('edit' + message).addEventListener('click', () => {
+            drafts.set(current.node.id, { content: '', loading: true });
+            renderEditableFile(file);
+            $(id + 'Content').hidden = false;
+            $(id + 'Arrow').textContent = '▾';
+            vscode.postMessage({ type: 'edit' + message, nodeId: current.node.id });
+        });
+        $(id + 'Editor').addEventListener('input', () => {
+            const draft = drafts.get(current.node.id);
+            if (draft) draft.content = $(id + 'Editor').value;
+        });
+        function save() {
+            const draft = drafts.get(current.node.id);
+            if (!draft?.session || draft.loading || draft.saving) return;
+            draft.saving = true;
+            draft.error = '';
+            renderEditableFile(file);
+            vscode.postMessage({ type: 'save' + message, nodeId: current.node.id, session: draft.session, content: draft.content });
+        }
+        $('save' + message).addEventListener('click', save);
+        $(id + 'Editor').addEventListener('keydown', event => {
+            if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+                event.preventDefault();
+                save();
+            }
+        });
+        $('cancel' + message).addEventListener('click', () => {
+            drafts.delete(current.node.id);
+            renderEditableFile(file);
+        });
+    }
     $('predecessorsSection').querySelector('.collapseHeader').addEventListener('click', () => {
         const box = $('predecessorsBox');
         box.hidden = !box.hidden;
@@ -278,5 +331,29 @@
         const msg = event.data;
         if (msg.type === 'selectNode') renderNode(msg);
         if (msg.type === 'impressionResults') renderResults(msg);
+        const file = editableFiles.find(file => msg.type === file.id + 'EditResult');
+        if (file) {
+            const draft = file.drafts.get(msg.nodeId);
+            if (!draft) return;
+            draft.loading = draft.saving = false;
+            draft.error = msg.error || '';
+            if (!msg.error && msg.operation === 'open') {
+                draft.content = msg.content;
+                draft.session = msg.session;
+            }
+            if (!msg.error && msg.operation === 'save') {
+                file.drafts.delete(msg.nodeId);
+                if (current?.node.id === msg.nodeId) {
+                    if (file.id === 'readme') current.readme = msg.content;
+                    else current.node.data.celebiYaml = msg.content;
+                    if (current.file?.kind === 'text') current.file.content = msg.content;
+                }
+            }
+            if (current?.node.id === msg.nodeId) {
+                renderEditableFile(file);
+                if (!msg.error && msg.operation === 'open') $(file.id + 'Editor').focus();
+                if (!msg.error && msg.operation === 'save') $(file.id + 'Status').textContent = 'Saved';
+            }
+        }
     });
 })();

@@ -3,11 +3,11 @@
  * DetailPanel.js + FilePreview.js sections:
  *   header (name + type badge) → impression select → impression id
  *   → README → Job Status → Predecessors → Successors → Object Info
- *   → Contents count → Results grid (+lightbox) | File info + preview
+ *   → celebi.yaml → Contents count → Results grid (+lightbox) | File info + preview
  */
 import * as vscode from 'vscode';
 
-export function getDetailHtml(webview: vscode.Webview, scriptUri: vscode.Uri): string {
+export function getDetailHtml(webview: vscode.Webview, scriptUri: vscode.Uri, yamlScriptUri: vscode.Uri): string {
     const nonce = getNonce();
     return `<!DOCTYPE html>
 <html lang="en">
@@ -37,6 +37,23 @@ export function getDetailHtml(webview: vscode.Webview, scriptUri: vscode.Uri): s
     .collapseArrow { display: inline-block; width: 1rem; color: var(--vscode-descriptionForeground); }
     .readmeBox { border: 1px solid var(--vscode-panel-border); border-radius: 4px;
                  padding: 0.6rem 0.75rem; white-space: pre-wrap; }
+    .readmeHeading { display: flex; align-items: center; justify-content: space-between; }
+    .readmeActions { display: flex; gap: 0.5rem; align-items: center; margin: 0.5rem 0; }
+    .readmeButton { border: 0; padding: 0.3rem 0.7rem; cursor: pointer;
+                   color: var(--vscode-button-foreground); background: var(--vscode-button-background); }
+    .readmeButton:disabled { opacity: 0.5; cursor: default; }
+    #readmeEditor, #yamlEditor { box-sizing: border-box; width: 100%; min-height: 240px; resize: vertical;
+                    padding: 0.75rem; font-family: var(--vscode-editor-font-family);
+                    color: var(--vscode-input-foreground); background: var(--vscode-input-background);
+                    border: 1px solid var(--vscode-input-border, var(--vscode-panel-border)); }
+    #readmeStatus, #yamlStatus { white-space: pre-wrap; color: var(--vscode-descriptionForeground); }
+    #yamlBox { margin: 0; padding: 0.75rem; overflow-x: auto; tab-size: 2;
+               font-family: var(--vscode-editor-font-family); line-height: 1.5;
+               background: var(--vscode-textCodeBlock-background); border-radius: 4px; }
+    .yaml-key { color: var(--vscode-symbolIcon-propertyForeground, #9cdcfe); }
+    .yaml-string { color: var(--vscode-debugTokenExpression-string, #ce9178); }
+    .yaml-number { color: var(--vscode-debugTokenExpression-number, #b5cea8); }
+    .yaml-comment { color: var(--vscode-descriptionForeground); font-style: italic; }
     .statusBadge { display: inline-block; padding: 2px 10px; border-radius: 10px;
                    font-weight: 600; color: #fff; }
     .statusDone { background: #21ba45; }
@@ -58,21 +75,20 @@ export function getDetailHtml(webview: vscode.Webview, scriptUri: vscode.Uri): s
                    padding: 0.6rem 0.75rem; border-radius: 6px; overflow-x: auto;
                    font-family: var(--vscode-editor-font-family);
                    line-height: 1.6; margin: 0.25rem 0 0; white-space: pre-wrap; }
-    .resultGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-                  gap: 0.75rem; margin-top: 0.5rem; }
-    .resultItem { display: flex; flex-direction: column; gap: 0.25rem; position: relative; }
-    .resultStatusIcon { position: absolute; top: 0.25rem; right: 0.25rem; z-index: 1;
-                        min-width: 1.1rem; height: 1.1rem; line-height: 1.1rem;
-                        text-align: center; border-radius: 3px; padding: 0 0.15rem;
-                        background: var(--vscode-badge-background);
-                        color: var(--vscode-badge-foreground); }
-    .resultStatusIcon.inYuki { background: rgba(33, 186, 69, 0.18); color: #21ba45; }
-    .resultStatusIcon.notYuki { background: rgba(251, 189, 8, 0.18); color: #b58900; }
+    .resultGrid { column-width: 180px; column-gap: 0.75rem; margin-top: 0.5rem; }
+    .resultItem { break-inside: avoid; margin-bottom: 0.75rem; }
     .resultImage { width: 100%; cursor: zoom-in; border: 1px solid var(--vscode-panel-border);
                    border-radius: 4px; }
     .resultFile { display: flex; align-items: center; gap: 0.4rem; }
     .resultFileLink { color: var(--vscode-textLink-foreground); text-decoration: none;
                       word-break: break-all; }
+    button.resultFileLink { border: 0; padding: 0; background: none; font: inherit;
+                            text-align: left; cursor: pointer; }
+    button.resultFileLink:hover { text-decoration: underline; }
+    .openRootButton { border: 0; border-radius: 3px; padding: 0.4rem 0.75rem;
+                      color: var(--vscode-button-foreground);
+                      background: var(--vscode-button-background); cursor: pointer; }
+    .openRootButton:hover { background: var(--vscode-button-hoverBackground); }
     .imagePreview { max-width: 100%; }
     .codePreview { background: var(--vscode-textCodeBlock-background); padding: 0.6rem 0.75rem;
                    border-radius: 4px; overflow-x: auto; white-space: pre-wrap; }
@@ -99,8 +115,21 @@ export function getDetailHtml(webview: vscode.Webview, scriptUri: vscode.Uri): s
   </div>
 
   <div class="section" id="readmeSection" hidden>
-    <h4 class="collapseHeader"><span class="collapseArrow" id="readmeArrow">▾</span> README</h4>
-    <div id="readmeBox" class="readmeBox"></div>
+    <div class="readmeHeading">
+      <h4 class="collapseHeader"><span class="collapseArrow" id="readmeArrow">▾</span> README.md</h4>
+      <button id="editReadme" class="readmeButton">Edit</button>
+    </div>
+    <div id="readmeContent">
+      <div id="readmeBox" class="readmeBox"></div>
+      <div id="readmeEditForm" hidden>
+        <textarea id="readmeEditor" aria-label="README Markdown" spellcheck="false"></textarea>
+        <div class="readmeActions">
+          <button id="saveReadme" class="readmeButton">Save</button>
+          <button id="cancelReadme" class="readmeButton">Cancel</button>
+        </div>
+      </div>
+      <div id="readmeStatus" role="status" aria-live="polite"></div>
+    </div>
   </div>
 
   <div class="section" id="statusSection" hidden>
@@ -123,12 +152,22 @@ export function getDetailHtml(webview: vscode.Webview, scriptUri: vscode.Uri): s
     <div id="successorsBox"></div>
   </div>
 
-  <div class="section" id="objectInfoSection" hidden>
-    <h4>Object Info</h4>
-    <div id="paramList" class="paramList"></div>
-    <div id="infoRows"></div>
-    <div id="codeFilesBox"></div>
-    <div id="commandsBox"></div>
+  <div class="section" id="yamlSection" hidden>
+    <div class="readmeHeading">
+      <h4 class="collapseHeader"><span class="collapseArrow" id="yamlArrow">▾</span> celebi.yaml</h4>
+      <button id="editYaml" class="readmeButton">Edit</button>
+    </div>
+    <div id="yamlContent">
+      <pre id="yamlBox" aria-label="celebi.yaml source"></pre>
+      <div id="yamlEditForm" hidden>
+        <textarea id="yamlEditor" aria-label="celebi.yaml source editor" spellcheck="false"></textarea>
+        <div class="readmeActions">
+          <button id="saveYaml" class="readmeButton">Save</button>
+          <button id="cancelYaml" class="readmeButton">Cancel</button>
+        </div>
+      </div>
+      <div id="yamlStatus" role="status" aria-live="polite"></div>
+    </div>
   </div>
 
   <div class="section" id="contentsSection" hidden>
@@ -155,6 +194,7 @@ export function getDetailHtml(webview: vscode.Webview, scriptUri: vscode.Uri): s
 
 <div id="lightbox" hidden><img id="lightboxImg" alt=""></div>
 
+<script nonce="${nonce}" src="${yamlScriptUri}"></script>
 <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;

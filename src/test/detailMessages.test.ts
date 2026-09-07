@@ -48,11 +48,22 @@ describe('impression result payloads', () => {
 });
 
 describe('parseWebviewMessage', () => {
+    test('validates inline README editing messages, including empty content', () => {
+        expect(parseWebviewMessage({ type: 'editReadme', nodeId: 'task' })).toEqual({ type: 'editReadme', nodeId: 'task' });
+        expect(parseWebviewMessage({ type: 'saveReadme', nodeId: 'task', session: 'edit-1', content: '' }))
+            .toEqual({ type: 'saveReadme', nodeId: 'task', session: 'edit-1', content: '' });
+        expect(parseWebviewMessage({ type: 'saveReadme', nodeId: 'task', content: 'text' })).toBeNull();
+        expect(parseWebviewMessage({ type: 'saveReadme', nodeId: 'task', session: 'edit-1', content: 42 })).toBeNull();
+    });
     test('parses valid messages', () => {
         expect(parseWebviewMessage({ type: 'selectImpression', impression: 'imp-9' }))
             .toEqual({ type: 'selectImpression', impression: 'imp-9' });
         expect(parseWebviewMessage({ type: 'navigateToPath', path: 'algorithms/reco' }))
             .toEqual({ type: 'navigateToPath', path: 'algorithms/reco' });
+        expect(parseWebviewMessage({ type: 'openRemoteRootFile', name: 'out.root', url: 'https://dite/out.root' }))
+            .toEqual({ type: 'openRemoteRootFile', name: 'out.root', url: 'https://dite/out.root' });
+        expect(parseWebviewMessage({ type: 'openLocalRootFile', path: 'stageout/out.root' }))
+            .toEqual({ type: 'openLocalRootFile', path: 'stageout/out.root' });
     });
     test('rejects invalid messages', () => {
         expect(parseWebviewMessage(null)).toBeNull();
@@ -60,5 +71,6 @@ describe('parseWebviewMessage', () => {
         expect(parseWebviewMessage({ type: 'nope' })).toBeNull();
         expect(parseWebviewMessage({ type: 'selectImpression' })).toBeNull();
         expect(parseWebviewMessage({ type: 'selectImpression', impression: 42 })).toBeNull();
+        expect(parseWebviewMessage({ type: 'openRemoteRootFile', name: 'out.root' })).toBeNull();
     });
 });

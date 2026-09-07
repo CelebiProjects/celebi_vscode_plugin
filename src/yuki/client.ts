@@ -69,15 +69,17 @@ function encodePath(path: string): string {
         .join('/');
 }
 
-/** Build the /export preview URL for an impression file. */
-export function buildFileUrl(baseUrl: string, projectUuid: string, impression: string, filePath: string): string {
+/** Build the /export or /remote-export preview URL for an impression file. */
+export function buildFileUrl(baseUrl: string, projectUuid: string, impression: string, filePath: string, remote = false): string {
     const base = baseUrl.replace(/\/+$/, '');
-    return `${base}/export/${encodePath(projectUuid)}/${encodePath(impression)}/${encodePath(filePath)}`;
+    const route = remote ? 'remote-export' : 'export';
+    return `${base}/${route}/${encodePath(projectUuid)}/${encodePath(impression)}/${encodePath(filePath)}`;
 }
 
 export class YukiClient {
     private _baseUrl: string;
     private readonly fetchImpl: FetchLike;
+    private _lastStatusError = '';
 
     constructor(baseUrl: string, fetchImpl?: FetchLike) {
         this._baseUrl = normalizeBaseUrl(baseUrl);
@@ -118,7 +120,6 @@ export class YukiClient {
 
     /** Fetch result files for an impression (plots first, then by name). */
     async fetchImpressionResults(projectUuid: string, impression: string, kind = 'stageout'): Promise<ImpressionFile[]> {
-        await this.request('get', `/collect/${encodePath(projectUuid)}/${encodePath(impression)}`).catch(() => null);
         const data = await this.request('get', `/file-status/${encodePath(projectUuid)}/${encodePath(impression)}/none?kind=${kind}`);
         const items = coerceArray(data)
             .map((entry) => this.normalizeImpressionFile(entry, projectUuid, impression))
@@ -138,17 +139,21 @@ export class YukiClient {
             || e.type === 'plot'
             || looksLikeImage(name);
         const filePath = String(e.path || e.filename || name);
+        const inYuki = Boolean(e.in_yuki);
+        const fallbackUrl = buildFileUrl(this._baseUrl, projectUuid, impression, filePath, !inYuki);
+        const suppliedUrl = String(e.url || e.href || e.src || fallbackUrl);
+        const resolvedUrl = new URL(suppliedUrl, `${this._baseUrl}/`).toString();
         return {
             name,
             path: filePath,
             type: String(e.type || (isPlot ? 'plot' : 'data')),
             is_plot: isPlot,
             is_image: isPlot,
-            url: String(e.url || e.href || e.src || buildFileUrl(this._baseUrl, projectUuid, impression, filePath)),
+            url: resolvedUrl,
             project_uuid: String(e.project_uuid || projectUuid),
             impression: String(e.impression || impression),
             in_runner: Boolean(e.in_runner),
-            in_yuki: Boolean(e.in_yuki),
+            in_yuki: inYuki,
         };
     }
 
@@ -173,9 +178,20 @@ export class YukiClient {
     async fetchDiteStatus(): Promise<'connected' | 'unconnected'> {
         try {
             const data = await this.request('get', '/dite-status');
-            return typeof data === 'string' && data.trim() === 'ok' ? 'connected' : 'unconnected';
-        } catch {
+            const status = typeof data === 'string' ? data.trim().toLowerCase() : '';
+            if (status === 'ok' || status === 'connected') {
+                this._lastStatusError = '';
+                return 'connected';
+            }
+            this._lastStatusError = `unexpected response: ${status || '(empty)'}`;
+            return 'unconnected';
+        } catch (error) {
+            this._lastStatusError = error instanceof Error ? error.message : String(error);
             return 'unconnected';
         }
+    }
+
+    get lastStatusError(): string {
+        return this._lastStatusError;
     }
 }

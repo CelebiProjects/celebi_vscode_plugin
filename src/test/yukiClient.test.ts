@@ -26,7 +26,6 @@ describe('YukiClient.fetchImpressionResults', () => {
         const calls: string[] = [];
         const fetchImpl = (url: string) => {
             calls.push(url);
-            if (url.includes('/collect/')) return Promise.resolve(jsonResponse(null));
             return Promise.resolve(jsonResponse([
                 { name: 'plot.png', path: 'figs/plot.png', is_plot: true, in_runner: true, in_yuki: false },
                 { name: 'out.root', path: 'out.root', in_runner: true, in_yuki: true },
@@ -34,12 +33,13 @@ describe('YukiClient.fetchImpressionResults', () => {
         };
         const client = new YukiClient('http://127.0.0.1:3315', fetchImpl as never);
         const items = await client.fetchImpressionResults('proj-uuid', 'impr-1');
-        expect(calls[0]).toBe('http://127.0.0.1:3315/collect/proj-uuid/impr-1');
-        expect(calls[1]).toBe('http://127.0.0.1:3315/file-status/proj-uuid/impr-1/none?kind=stageout');
+        expect(calls).toEqual([
+            'http://127.0.0.1:3315/file-status/proj-uuid/impr-1/none?kind=stageout',
+        ]);
         expect(items).toHaveLength(2);
         expect(items[0].name).toBe('plot.png');
         expect(items[0].is_plot).toBe(true);
-        expect(items[0].url).toBe('http://127.0.0.1:3315/export/proj-uuid/impr-1/figs/plot.png');
+        expect(items[0].url).toBe('http://127.0.0.1:3315/remote-export/proj-uuid/impr-1/figs/plot.png');
         expect(items[1].is_plot).toBe(false);
         expect(items[0].in_runner).toBe(true);
         expect(items[0].in_yuki).toBe(false);
@@ -69,6 +69,15 @@ describe('YukiClient.fetchImpressionResults', () => {
             expect(items).toHaveLength(1);
             expect(items[0].name).toBe('x.root');
         }
+    });
+
+    test('resolves server-provided relative file URLs against DITE', async () => {
+        const fetchImpl = () => Promise.resolve(jsonResponse([
+            { name: 'x.root', url: '/remote-export/p/i/x.root' },
+        ]));
+        const client = new YukiClient('https://dite.example.test:3315', fetchImpl as never);
+        const items = await client.fetchImpressionResults('p', 'i');
+        expect(items[0].url).toBe('https://dite.example.test:3315/remote-export/p/i/x.root');
     });
 
     test('rejects when the server errors', async () => {

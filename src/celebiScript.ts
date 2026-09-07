@@ -51,6 +51,8 @@ def human_readable_size(num):
         size /= 1024
 
 def visible_entry(entry):
+    if entry.name in ("README.md", "celebi.yaml"):
+        return False
     if entry.name.startswith((".", "dot_")) or entry.name.endswith("~undo-tree~"):
         return False
     if node_path == project_path and entry.name == "impression_data":
@@ -152,7 +154,7 @@ def get_object(node_path):
         objects[node_path] = VObject(node_path, project_path)
     return objects[node_path]
 def visible(e, root):
-    return not e.name.startswith((".", "dot_")) and not e.name.endswith("~undo-tree~") and not (root == project_path and e.name == "impression_data") and not (e.is_symlink() and e.is_dir())
+    return e.name not in ("README.md", "celebi.yaml") and not e.name.startswith((".", "dot_")) and not e.name.endswith("~undo-tree~") and not (root == project_path and e.name == "impression_data") and not (e.is_symlink() and e.is_dir())
 def children(node_path):
     obj = get_object(node_path)
     object_map = {os.path.abspath(x.path): x for x in obj.sub_objects()}
@@ -186,9 +188,23 @@ def detail(node_path):
     if kind == "task":
         data.update({"parameters": obj.parameters()[1], "memory_limit": obj.memory_limit(), "default_runner": obj.default_runner(), "aliases": list(obj.get_alias_list())})
     config = {k: obj.config_file.read_variable(k, d) for k, d in (("predecessors", []), ("successors", []), ("impressions", []), ("impression", ""))}
+    type_map = {}
+    for relative in (config.get("predecessors") or []) + (config.get("successors") or []):
+        if not isinstance(relative, str):
+            continue
+        linked_path = os.path.abspath(os.path.join(project_path, relative))
+        try:
+            inside = os.path.commonpath([project_path, linked_path]) == project_path
+        except ValueError:
+            inside = False
+        if inside and os.path.isdir(linked_path):
+            linked = get_object(linked_path)
+            linked_type = linked.object_type()
+            if linked_type:
+                type_map[relative] = linked_type
     try: readme = obj.readme()
     except OSError: readme = None
-    return {"data": data, "config": config, "readme": readme, "typeMap": {}}
+    return {"data": data, "config": config, "readme": readme, "typeMap": type_map}
 for line in sys.stdin:
     req = {}
     started = time.perf_counter()

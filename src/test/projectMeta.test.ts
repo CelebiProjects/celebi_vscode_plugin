@@ -70,14 +70,14 @@ describe('readFileForPreview', () => {
         fs.rmSync(dir, { recursive: true, force: true });
     });
 
-    test('marks pdfs and unsupported files', () => {
+    test('marks PDF and ROOT files for their dedicated viewers', () => {
         const dir = makeTmpDir();
         const pdf = path.join(dir, 'a.pdf');
         const root = path.join(dir, 'b.root');
         fs.writeFileSync(pdf, '%PDF');
         fs.writeFileSync(root, 'root-data');
         expect(readFileForPreview(pdf)).toEqual({ kind: 'pdf', absolutePath: pdf });
-        expect(readFileForPreview(root)).toEqual({ kind: 'unsupported', ext: 'root' });
+        expect(readFileForPreview(root)).toEqual({ kind: 'root', absolutePath: root });
         fs.rmSync(dir, { recursive: true, force: true });
     });
 });

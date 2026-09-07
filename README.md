@@ -6,7 +6,9 @@ A VS Code extension for browsing [CelebiChrono](https://github.com/celebi) proje
 
 - **Dynamic Project Tree**: Browse your Celebi project structure (Projects → Algorithms/Tasks/Data + workspace files)
 - **Detail Webview**: Click any node to see its metadata, README, parameters, commands, predecessors/successors, and task results
+- **Inline README Editing**: Use Edit, Save, and Cancel in the README section of the detail preview. Works for object READMEs and selected `README.md` files; drafts survive selection changes while the panel remains open.
 - **Task Results**: Automatically fetch job status and output files (plots, data, logs) from the DITE server for submitted tasks
+- **ROOT Viewer**: Open local or remote `.root` results with JSROOT; remote files use byte-range streaming instead of a full download
 - **Impression Selector**: Switch between historical impressions of a task
 - **Auto-refresh**: Tree automatically refreshes when project files change
 - **Manual Refresh**: Refresh the tree from the view title action
@@ -41,6 +43,7 @@ The extension automatically detects virtual environments in the following order:
 3. The extension builds the project tree from CelebiChrono
 4. Click a node to explore its details in the main editor area
 5. Click a submitted task to see its job status and result files
+6. Click a `.root` result to open the interactive ROOT hierarchy and plots. Remote viewing requires DITE's `/export` and `/remote-export` routes to honor HTTP `Range` requests (`206 Partial Content`).
 
 ## Commands
 

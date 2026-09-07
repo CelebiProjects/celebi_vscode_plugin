@@ -1,0 +1,45 @@
+html, body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    color: #202124;
+    background: #ffffff;
+    font-family: var(--vscode-font-family);
+}
+
+#hierarchy {
+    position: absolute;
+    inset: 0;
+}
+
+#loading, #error {
+    position: absolute;
+    z-index: 10;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    max-width: 44rem;
+    padding: 0.8rem 1rem;
+    border-radius: 4px;
+    background: #ffffff;
+    border: 1px solid #c8c8c8;
+}
+
+#error {
+    color: #b00020;
+    white-space: pre-wrap;
+}
+
+.jsroot_browser_area, .jsroot_draw_area {
+    background-color: #ffffff !important;
+}
+
+.jsroot_separator {
+    background-color: #d0d0d0 !important;
+}
+
+.jsroot_tabs_label {
+    border: none !important;
+    color: #1565c0 !important;
+    cursor: pointer !important;
+}

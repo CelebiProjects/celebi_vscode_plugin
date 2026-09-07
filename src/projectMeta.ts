@@ -86,6 +86,7 @@ export type FilePreviewPayload =
     | { kind: 'text'; content: string }
     | { kind: 'image'; base64: string; mime: string }
     | { kind: 'pdf'; absolutePath: string }
+    | { kind: 'root'; absolutePath: string }
     | { kind: 'unsupported'; ext: string };
 
 /** Read a workspace file for the detail webview preview. */
@@ -101,6 +102,9 @@ export function readFileForPreview(absolutePath: string): FilePreviewPayload {
     }
     if (ext === 'pdf') {
         return { kind: 'pdf', absolutePath };
+    }
+    if (ext === 'root') {
+        return { kind: 'root', absolutePath };
     }
     if (CODE_EXTENSIONS.includes(ext) || TEXT_EXTENSIONS.includes(ext)) {
         return { kind: 'text', content: fs.readFileSync(absolutePath, 'utf8') };

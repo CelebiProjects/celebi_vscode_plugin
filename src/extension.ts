@@ -15,14 +15,17 @@ import { YukiClient } from './yuki/client';
 import { readProjectMeta, readFileForPreview } from './projectMeta';
 import { runCelebiPython, ObjectDetailData, disposeCelebiPythonWorkers } from './celebiScript';
 import { DetailWebviewProvider } from './webview/detailWebview';
+import { ProjectFileEditor } from './webview/projectFileEditor';
+import { RootViewer } from './rootViewer/rootViewer';
 import {
     buildSelectNodePayload, buildImpressionLoading, buildImpressionReady,
     buildImpressionError, NodeDetail,
 } from './webview/detailMessages';
 
 export function activate(context: vscode.ExtensionContext): void {
-    const projectRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-    if (!projectRoot) {
+    const projectFolder = vscode.workspace.workspaceFolders?.[0];
+    const projectRoot = projectFolder?.uri.fsPath;
+    if (!projectFolder || !projectRoot) {
         void vscode.window.showInformationMessage(
             'Celebi: open a workspace folder to browse its repository.'
         );
@@ -40,6 +43,9 @@ export function activate(context: vscode.ExtensionContext): void {
     const config = vscode.workspace.getConfiguration('celebi');
     const baseUrl = meta.diteUrl || config.get<string>('diteServerUrl', 'http://127.0.0.1:3315');
     const yuki = new YukiClient(baseUrl);
+    const rootViewer = new RootViewer(context);
+    const availableRemoteRoots = new Map<string, string>();
+    context.subscriptions.push(rootViewer);
 
     // -- Tree --
     const provider = new CelebiTreeProvider(projectRoot);
@@ -59,7 +65,10 @@ export function activate(context: vscode.ExtensionContext): void {
         timing('dite.status.start');
         const status = await yuki.fetchDiteStatus();
         provider.setDiteStatus(status);
-        timing('dite.status.done', { status, total_ms: elapsed(started) });
+        timing('dite.status.done', {
+            status, total_ms: elapsed(started),
+            error: yuki.lastStatusError || undefined,
+        });
     };
 
     context.subscriptions.push(
@@ -75,13 +84,15 @@ export function activate(context: vscode.ExtensionContext): void {
     // Selection sequence token: async detail payloads from a stale selection
     // must not overwrite newer ones.
     let selectionSeq = 0;
+    let selectedNodeId = '';
 
-    const loadImpression = async (impression: string, mySeq: number): Promise<void> => {
+    const loadImpression = async (impression: string, mySeq: number, currentNodeId: string): Promise<void> => {
+        availableRemoteRoots.clear();
         if (!meta.projectUuid) {
-            detail.show(buildImpressionError('Project UUID missing — cannot load results.'));
+            detail.show(buildImpressionError('Project UUID missing — cannot load results.', mySeq, currentNodeId));
             return;
         }
-        detail.show(buildImpressionLoading());
+        detail.show(buildImpressionLoading(mySeq, currentNodeId));
         try {
             const [items, status, workflow] = await Promise.all([
                 yuki.fetchImpressionResults(meta.projectUuid, impression),
@@ -89,22 +100,67 @@ export function activate(context: vscode.ExtensionContext): void {
                 yuki.fetchImpressionWorkflow(meta.projectUuid, impression),
             ]);
             if (mySeq !== selectionSeq) return;
-            detail.show(buildImpressionReady(items, status.status, status.details, workflow));
+            for (const item of items) {
+                if (/\.root$/i.test(item.name) || /\.root(?:[?#]|$)/i.test(item.url)) {
+                    availableRemoteRoots.set(item.url, item.name);
+                }
+            }
+            detail.show(buildImpressionReady(items, status.status, status.details, workflow, mySeq, currentNodeId));
         } catch (err) {
             if (mySeq !== selectionSeq) return;
             const message = err instanceof Error ? err.message : String(err);
-            detail.show(buildImpressionError(message));
+            detail.show(buildImpressionError(message, mySeq, currentNodeId));
         }
     };
 
+    const readmeEditor = new ProjectFileEditor(projectRoot, 'README.md');
+    const yamlEditor = new ProjectFileEditor(projectRoot, 'celebi.yaml');
     const detail = new DetailWebviewProvider({
+        onEditReadme: async nodeId => {
+            const item = provider.getItemById(nodeId);
+            if (!item) throw new Error('Select the object again before editing its README.');
+            return readmeEditor.open({ id: item.nodeId, kind: item.kind, name: item.node.name });
+        },
+        onSaveReadme: (nodeId, session, content) => readmeEditor.save(nodeId, session, content),
+        onEditYaml: async nodeId => {
+            const item = provider.getItemById(nodeId);
+            if (!item) throw new Error('Select the object again before editing celebi.yaml.');
+            return yamlEditor.open({ id: item.nodeId, kind: item.kind, name: item.node.name });
+        },
+        onSaveYaml: (nodeId, session, content) => yamlEditor.save(nodeId, session, content),
         onSelectImpression: async (impression) => {
-            await loadImpression(impression, selectionSeq);
+            await loadImpression(impression, selectionSeq, selectedNodeId);
         },
         onNavigate: async (targetPath) => {
             const item = await provider.resolveItem(targetPath);
             if (!item) return;
             await treeView.reveal(item, { select: true, focus: true });
+        },
+        onOpenRemoteRootFile: async (name, url) => {
+            const started = Date.now();
+            timing('root.open.start', { name, url });
+            if (availableRemoteRoots.get(url) !== name) {
+                timing('root.open.rejected', { name, reason: 'result-url-not-available' });
+                void vscode.window.showErrorMessage('Celebi: this remote ROOT result is no longer available.');
+                return;
+            }
+            try {
+                await rootViewer.openRemote(name, url);
+                timing('root.open.panel-created', { name, total_ms: Date.now() - started });
+            } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                timing('root.open.error', { name, total_ms: Date.now() - started, message });
+                void vscode.window.showErrorMessage(`Celebi: could not open ${name}: ${message}`);
+            }
+        },
+        onOpenLocalRootFile: (targetPath) => {
+            const item = provider.getItemById(targetPath);
+            if (!item || item.node.type !== 'file' || !/\.root$/i.test(item.node.name)) {
+                void vscode.window.showErrorMessage('Celebi: this local ROOT file is no longer available.');
+                return;
+            }
+            const fileUri = vscode.Uri.joinPath(projectFolder.uri, ...targetPath.split('/'));
+            rootViewer.openLocal(item.node.name, fileUri);
         },
     }, context.extensionPath);
     context.subscriptions.push(detail);
@@ -120,6 +176,7 @@ export function activate(context: vscode.ExtensionContext): void {
         const started = performance.now();
         const mySeq = ++selectionSeq;
         const node = item.node;
+        selectedNodeId = node.id;
 
         // Status/error rows are not explorable objects — skip the detail panel.
         if (node.id === '__dite_status__' || node.id.startsWith('__error__')) return;
@@ -151,15 +208,21 @@ export function activate(context: vscode.ExtensionContext): void {
         const fsPath = path.join(projectRoot, node.id);
         // Show the selected node immediately, then fill in its API detail.
         detail.show(buildSelectNodePayload(nodeDetail, null, null, provider.getTypeMap(), meta.projectUuid));
-        let result: ObjectDetailData;
-        try {
-            result = await runCelebiPython('detail', projectRoot, fsPath) as ObjectDetailData;
-        } catch (error) {
-            if (mySeq !== selectionSeq) return;
-            void vscode.window.showErrorMessage(`Celebi: could not load details: ${String(error)}`);
+        const requests: [Promise<unknown>, Promise<string | null>] = [
+            runCelebiPython('detail', projectRoot, fsPath),
+            node.type === 'object' ? yamlEditor.read(nodeDetail) : Promise.resolve(null),
+        ];
+        const [apiDetail, yaml] = await Promise.allSettled(requests);
+        if (mySeq !== selectionSeq) return;
+        nodeDetail.data.celebiYaml = yaml.status === 'fulfilled' ? yaml.value : null;
+        if (yaml.status === 'rejected') nodeDetail.data.celebiYamlError = String(yaml.reason);
+        if (apiDetail.status === 'rejected') {
+            // Keep the source editable even when malformed YAML prevents API details from loading.
+            detail.show(buildSelectNodePayload(nodeDetail, null, null, provider.getTypeMap(), meta.projectUuid));
+            void vscode.window.showErrorMessage(`Celebi: could not load details: ${String(apiDetail.reason)}`);
             return;
         }
-        if (mySeq !== selectionSeq) return;
+        const result = apiDetail.value as ObjectDetailData;
         const mergedConfig = result.config;
         nodeDetail.data = { ...nodeDetail.data, ...result.data };
         detail.show(buildSelectNodePayload(
@@ -172,7 +235,7 @@ export function activate(context: vscode.ExtensionContext): void {
         const impression = mergedConfig.impression as string | undefined;
         if (node.celebiType === 'task' && impression && meta.projectUuid) {
             const resultsStarted = performance.now();
-            await loadImpression(impression, mySeq);
+            await loadImpression(impression, mySeq, node.id);
             timing('detail.results.done', { node: node.id, results_ms: elapsed(resultsStarted) });
         }
     }

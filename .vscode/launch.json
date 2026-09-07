@@ -12,10 +12,23 @@
 			"args": [
 				"--extensionDevelopmentPath=${workspaceFolder}"
 			],
+			"preLaunchTask": "compile-extension",
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
 			],
-			// "preLaunchTask": "${defaultBuildTask}"
+			"trace": true
+		},
+		{
+			"name": "Run Extension (Isolated Diagnostic)",
+			"type": "extensionHost",
+			"request": "launch",
+			"args": [
+				"--extensionDevelopmentPath=${workspaceFolder}",
+				"--disable-extensions"
+			],
+			"preLaunchTask": "compile-extension",
+			"outFiles": ["${workspaceFolder}/out/**/*.js"],
+			"trace": true
 		}
 	]
 }

@@ -3,8 +3,9 @@
  * Only the impression-result methods are kept (no runner/workflow management).
  *
  * The transport is injectable so tests can substitute a stub; the real
- * implementation delegates to Node's global fetch.
+ * implementation uses HTTP directly to avoid unnecessary system CA loading.
  */
+import { fetchYuki } from './transport';
 const DEFAULT_TIMEOUT = 10000;
 
 /** Minimal fetch signature we rely on (kept loose to avoid @types/node fetch variance). */
@@ -80,7 +81,7 @@ export class YukiClient {
 
     constructor(baseUrl: string, fetchImpl?: FetchLike) {
         this._baseUrl = normalizeBaseUrl(baseUrl);
-        this.fetchImpl = fetchImpl ?? (globalThis.fetch as unknown as FetchLike);
+        this.fetchImpl = fetchImpl ?? fetchYuki;
     }
 
     get baseUrl(): string {

@@ -1,20 +1,13 @@
-/**
- * Celebi repository tree data provider.
- *
- * On refresh, runs the one-shot Celebi Python script (objects + workspace
- * files), builds the full tree with treeBuilder.ts, and fires the change
- * event. Children are precomputed — no lazy expansion.
- */
+/** Lazy Celebi repository tree. Only expanded directories are loaded. */
+import * as path from 'path';
 import * as vscode from 'vscode';
 import { CelebiTreeItem } from '../treeItem';
-import { runCelebiPython, ProjectData } from '../celebiScript';
-import {
-    buildObjectTree, mergeFilesIntoTree, buildTypeMap, findParent,
-    TreeNode, ObjectRecord, FileRecord,
-} from './treeBuilder';
+import { runCelebiPython, ChildrenData } from '../celebiScript';
+import { TreeNode } from './treeBuilder';
+import { timing, elapsed } from '../timing';
 
 function toItem(node: TreeNode): CelebiTreeItem {
-    const collapsible = node.children.length > 0
+    const collapsible = node.type !== 'file' && node.id !== '__dite_status__' && !node.id.startsWith('__error__')
         ? vscode.TreeItemCollapsibleState.Collapsed
         : vscode.TreeItemCollapsibleState.None;
     return new CelebiTreeItem(node, collapsible);
@@ -24,7 +17,8 @@ function toItem(node: TreeNode): CelebiTreeItem {
 export type DiteStatus = 'connected' | 'unconnected';
 
 export class CelebiTreeProvider implements vscode.TreeDataProvider<CelebiTreeItem> {
-    private root: TreeNode = buildObjectTree([]);
+    private generation = 0;
+    private children = new Map<string, Promise<CelebiTreeItem[]>>();
     private typeMap: Record<string, string> = {};
     private itemCache = new Map<string, CelebiTreeItem>();
     private diteStatus: DiteStatus | null = null;
@@ -36,23 +30,62 @@ export class CelebiTreeProvider implements vscode.TreeDataProvider<CelebiTreeIte
     constructor(private readonly projectRoot: string) {}
 
     getTreeItem(element: CelebiTreeItem): vscode.TreeItem {
+        timing('tree.getTreeItem', { node: element.nodeId, label: String(element.label), kind: element.kind });
         return element;
     }
 
     async getChildren(element?: CelebiTreeItem): Promise<CelebiTreeItem[]> {
-        if (!element) {
-            if (this.error) {
-                const errorNode: TreeNode = {
-                    id: '__error__', name: this.error, type: 'directory',
-                    icon: 'error', iconColor: 'red', celebiType: null, data: {}, children: [],
-                };
-                return [this.cachedItem(errorNode)];
-            }
-            const diteItem = this.diteStatusItem();
-            const children = this.root.children.map((child) => this.cachedItem(child));
-            return diteItem ? [diteItem, ...children] : children;
+        if (element && (element.kind === 'file' || element.nodeId === '__dite_status__' || element.nodeId.startsWith('__error__'))) return [];
+        const started = performance.now();
+        const id = element?.nodeId || '';
+        timing('tree.getChildren.enter', { node: id || '.', element: element?.label || '(root)', cached_directories: this.children.size });
+        let pending = this.children.get(id);
+        timing('tree.children.start', { node: id || '.', cached_or_pending: !!pending, generation: this.generation });
+        if (!pending) {
+            pending = this.loadChildren(id, this.generation);
+            this.children.set(id, pending);
         }
-        return element.node.children.map((child) => this.cachedItem(child));
+        const children = await pending;
+        timing('tree.children.done', { node: id || '.', total_ms: elapsed(started), count: children.length });
+        const dite = !element ? this.diteStatusItem() : null;
+        return dite ? [dite, ...children] : children;
+    }
+
+    private async loadChildren(id: string, generation: number): Promise<CelebiTreeItem[]> {
+        try {
+            const data = await runCelebiPython('children', this.projectRoot,
+                path.join(this.projectRoot, id)) as ChildrenData;
+            if (generation !== this.generation) {
+                timing('tree.response.stale', { node: id || '.', generation });
+                return [];
+            }
+            if (!id) this.error = null;
+            const buildStarted = performance.now();
+            const items = data.entries.map(entry => {
+                if (entry.type) this.typeMap[entry.path] = entry.type;
+                return this.cachedItem({
+                    id: entry.path, name: entry.name, type: entry.kind,
+                    celebiType: entry.type, icon: '', iconColor: '',
+                    data: { ...entry, name: entry.path }, children: [],
+                });
+            });
+            items.sort((a, b) => Number(a.kind === 'file') - Number(b.kind === 'file')
+                || a.node.name.localeCompare(b.node.name));
+            const parent = this.itemCache.get(id);
+            if (parent) parent.node.children = items.map(item => item.node);
+            timing('tree.build.done', { node: id || '.', build_ms: elapsed(buildStarted), count: items.length });
+            return items;
+        } catch (err) {
+            if (generation !== this.generation) return [];
+            this.children.delete(id); // A later expansion can retry.
+            const message = err instanceof Error ? err.message : String(err);
+            timing('tree.children.error', { node: id || '.', message });
+            if (!id) this.error = message;
+            return [this.cachedItem({
+                id: '__error__' + id, name: message, type: 'directory',
+                icon: 'error', iconColor: 'red', celebiType: null, data: {}, children: [],
+            })];
+        }
     }
 
     /** Update the DITE status row at the top of the tree. */
@@ -99,21 +132,28 @@ export class CelebiTreeProvider implements vscode.TreeDataProvider<CelebiTreeIte
         return item;
     }
 
-    /** Re-run the Python script and rebuild the tree. */
+    /** Invalidate loaded directories; VS Code requests only visible branches again. */
     async refresh(): Promise<void> {
+        timing('tree.refresh', { generation: this.generation + 1, cached_directories: this.children.size });
+        this.generation++;
         this.error = null;
+        this.children.clear();
         this.itemCache.clear();
-        try {
-            const data = (await runCelebiPython('project', this.projectRoot)) as ProjectData;
-            this.root = buildObjectTree(data.objects as ObjectRecord[]);
-            mergeFilesIntoTree(this.root, data.files as FileRecord[]);
-            this.typeMap = buildTypeMap(this.root);
-        } catch (err) {
-            this.error = err instanceof Error ? err.message : String(err);
-            this.root = buildObjectTree([]);
-            this.typeMap = {};
-        }
+        this.typeMap = {};
         this._onDidChangeTreeData.fire();
+    }
+
+    /** Materialize ancestors when navigating to an unexpanded object. */
+    async resolveItem(id: string): Promise<CelebiTreeItem | undefined> {
+        const parts = id.split('/');
+        if (parts.some(part => !part || part === '.' || part === '..')) return undefined;
+        let parent: CelebiTreeItem | undefined;
+        for (let i = 0; i < parts.length; i++) {
+            const children = await this.getChildren(parent);
+            parent = children.find(item => item.nodeId === parts.slice(0, i + 1).join('/'));
+            if (!parent) return undefined;
+        }
+        return parent;
     }
 
     /** Cached tree item for a node id, if the tree has materialized it. */
@@ -122,12 +162,8 @@ export class CelebiTreeProvider implements vscode.TreeDataProvider<CelebiTreeIte
     }
 
     getParent(element: CelebiTreeItem): vscode.ProviderResult<CelebiTreeItem> {
-        const id = element.nodeId;
-        if (id === '__root__' || id === '__error__') return undefined;
-        const parent = findParent(this.root, id);
-        // Top-level items report '__root__' as parent — not a materialized
-        // element, so returning undefined is correct.
-        return parent ? this.itemCache.get(parent.id) : undefined;
+        const parentId = element.nodeId.split('/').slice(0, -1).join('/');
+        return this.itemCache.get(parentId);
     }
 
     getTypeMap(): Record<string, string> {

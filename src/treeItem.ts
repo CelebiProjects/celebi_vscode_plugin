@@ -37,6 +37,7 @@ export class CelebiTreeItem extends vscode.TreeItem {
     constructor(node: TreeNode, collapsibleState: vscode.TreeItemCollapsibleState) {
         super(node.name, collapsibleState);
         this.node = node;
+        this.id = node.id;
         const icon = iconFor(node.type, node.celebiType);
         this.iconPath = icon.color
             ? new vscode.ThemeIcon(icon.id, new vscode.ThemeColor(icon.color))

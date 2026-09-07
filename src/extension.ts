@@ -1,17 +1,19 @@
 /**
  * Celebi VS Code Extension — entry point.
  *
- * Lean viewer: a repository tree (objects + workspace files, built by a
- * one-shot Python script) and a detail webview aligned with celebi_ui's
+ * Lean viewer: a lazy repository tree backed by the Celebi API
+ * and a detail webview aligned with celebi_ui's
  * CelebiExplorer/DetailPanel. Results come from the DITE HTTP API.
  */
 import * as path from 'path';
+import { timing, elapsed } from './timing';
 import * as vscode from 'vscode';
 import { CelebiTreeProvider } from './tree/treeProvider';
 import { CelebiTreeItem } from './treeItem';
+import { affectsTree } from './tree/treeChanges';
 import { YukiClient } from './yuki/client';
-import { readProjectMeta, readObjectConfig, readFileForPreview } from './projectMeta';
-import { runCelebiPython } from './celebiScript';
+import { readProjectMeta, readFileForPreview } from './projectMeta';
+import { runCelebiPython, ObjectDetailData, disposeCelebiPythonWorkers } from './celebiScript';
 import { DetailWebviewProvider } from './webview/detailWebview';
 import {
     buildSelectNodePayload, buildImpressionLoading, buildImpressionReady,
@@ -28,6 +30,12 @@ export function activate(context: vscode.ExtensionContext): void {
     }
 
     // -- Project metadata & yuki client --
+    timing('extension.activate', {
+        extension: context.extensionPath,
+        project: projectRoot,
+        pid: process.pid,
+        vscode_version: vscode.version,
+    });
     const meta = readProjectMeta(projectRoot);
     const config = vscode.workspace.getConfiguration('celebi');
     const baseUrl = meta.diteUrl || config.get<string>('diteServerUrl', 'http://127.0.0.1:3315');
@@ -38,9 +46,20 @@ export function activate(context: vscode.ExtensionContext): void {
     const treeView = vscode.window.createTreeView('celebiTreeView', {
         treeDataProvider: provider,
     });
+    timing('tree.view.created', { visible: treeView.visible });
+    context.subscriptions.push(treeView.onDidExpandElement(event => {
+        timing('tree.view.expanded', { node: event.element.nodeId });
+    }));
+    context.subscriptions.push(treeView.onDidChangeVisibility(event => {
+        timing('tree.view.visibility', { visible: event.visible });
+    }));
 
     const updateDiteStatus = async (): Promise<void> => {
-        provider.setDiteStatus(await yuki.fetchDiteStatus());
+        const started = performance.now();
+        timing('dite.status.start');
+        const status = await yuki.fetchDiteStatus();
+        provider.setDiteStatus(status);
+        timing('dite.status.done', { status, total_ms: elapsed(started) });
     };
 
     context.subscriptions.push(
@@ -83,7 +102,7 @@ export function activate(context: vscode.ExtensionContext): void {
             await loadImpression(impression, selectionSeq);
         },
         onNavigate: async (targetPath) => {
-            const item = provider.getItemById(targetPath);
+            const item = await provider.resolveItem(targetPath);
             if (!item) return;
             await treeView.reveal(item, { select: true, focus: true });
         },
@@ -98,12 +117,14 @@ export function activate(context: vscode.ExtensionContext): void {
     });
 
     const showDetail = async (item: CelebiTreeItem): Promise<void> => {
+        const started = performance.now();
         const mySeq = ++selectionSeq;
         const node = item.node;
 
         // Status/error rows are not explorable objects — skip the detail panel.
-        if (node.id === '__dite_status__' || node.id === '__error__') return;
+        if (node.id === '__dite_status__' || node.id.startsWith('__error__')) return;
 
+        timing('detail.selection', { node: node.id, selection: mySeq });
         if (node.type === 'file') {
             const fileData = node.data as Record<string, unknown>;
             const absolutePath = String(fileData.absolutePath || path.join(projectRoot, node.id));
@@ -118,6 +139,7 @@ export function activate(context: vscode.ExtensionContext): void {
                 file = undefined;
             }
             detail.show(buildSelectNodePayload(nodeDetail, null, null, provider.getTypeMap(), meta.projectUuid, file));
+            timing('detail.file.sent', { node: node.id, total_ms: elapsed(started) });
             return;
         }
 
@@ -127,26 +149,31 @@ export function activate(context: vscode.ExtensionContext): void {
         };
 
         const fsPath = path.join(projectRoot, node.id);
-        const { config: objectConfig, localConfig } = readObjectConfig(fsPath);
-        const mergedConfig = { ...(objectConfig || {}), ...(localConfig || {}) };
-
-        let readme: string | null = null;
+        // Show the selected node immediately, then fill in its API detail.
+        detail.show(buildSelectNodePayload(nodeDetail, null, null, provider.getTypeMap(), meta.projectUuid));
+        let result: ObjectDetailData;
         try {
-            const result = (await runCelebiPython('readme', projectRoot, fsPath)) as { readme: string | null };
-            readme = result.readme;
-        } catch {
-            // README is optional — keep null
+            result = await runCelebiPython('detail', projectRoot, fsPath) as ObjectDetailData;
+        } catch (error) {
+            if (mySeq !== selectionSeq) return;
+            void vscode.window.showErrorMessage(`Celebi: could not load details: ${String(error)}`);
+            return;
         }
-
         if (mySeq !== selectionSeq) return;
+        const mergedConfig = result.config;
+        nodeDetail.data = { ...nodeDetail.data, ...result.data };
         detail.show(buildSelectNodePayload(
-            nodeDetail, mergedConfig, readme, provider.getTypeMap(), meta.projectUuid
+            nodeDetail, mergedConfig, result.readme, { ...provider.getTypeMap(), ...result.typeMap }, meta.projectUuid
         ));
+
+        timing('detail.payload.sent', { node: node.id, selection: mySeq, total_ms: elapsed(started) });
 
         // Auto-fetch results for the default impression when a task is selected
         const impression = mergedConfig.impression as string | undefined;
         if (node.celebiType === 'task' && impression && meta.projectUuid) {
+            const resultsStarted = performance.now();
             await loadImpression(impression, mySeq);
+            timing('detail.results.done', { node: node.id, results_ms: elapsed(resultsStarted) });
         }
     }
 
@@ -155,16 +182,37 @@ export function activate(context: vscode.ExtensionContext): void {
         new vscode.RelativePattern(projectRoot, '**/*')
     );
     let debounceTimer: NodeJS.Timeout | undefined;
-    const scheduleRefresh = () => {
+    const scheduleRefresh = (uri: vscode.Uri, change: 'change' | 'structure') => {
+        const relativePath = path.relative(projectRoot, uri.fsPath).split(path.sep).join('/');
+        if (!affectsTree(relativePath, change)) return;
+        timing('tree.watch.schedule', { path: relativePath, change, debounce_ms: 800 });
         if (debounceTimer) clearTimeout(debounceTimer);
         debounceTimer = setTimeout(() => void provider.refresh(), 800);
     };
-    watcher.onDidChange(scheduleRefresh);
-    watcher.onDidCreate(scheduleRefresh);
-    watcher.onDidDelete(scheduleRefresh);
-    context.subscriptions.push(watcher);
+    watcher.onDidChange(uri => scheduleRefresh(uri, 'change'));
+    watcher.onDidCreate(uri => scheduleRefresh(uri, 'structure'));
+    watcher.onDidDelete(uri => scheduleRefresh(uri, 'structure'));
+    context.subscriptions.push(watcher, { dispose: () => {
+        if (debounceTimer) clearTimeout(debounceTimer);
+    } });
 
-    void provider.refresh().then(() => void updateDiteStatus());
+    void provider.refresh().then(() => {
+        timing('extension.initial_refresh.done');
+        // Warm the root cache; the view shares this pending request when opened.
+        const warmStarted = performance.now();
+        return provider.getChildren().then(children => {
+            timing('extension.root_warm.done', {
+                count: children.length,
+                total_ms: elapsed(warmStarted),
+            });
+        });
+    }).then(() => {
+        return updateDiteStatus();
+    }).catch(error => {
+        timing('extension.initial_refresh.error', { message: String(error) });
+    });
 }
 
-export function deactivate(): void { /* nothing to clean up */ }
+export function deactivate(): void {
+    disposeCelebiPythonWorkers();
+}

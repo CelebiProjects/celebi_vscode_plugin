@@ -11,7 +11,8 @@
     "Other"
   ],
   "activationEvents": [
-    "*"
+    "onStartupFinished",
+    "onView:celebiTreeView"
   ],
   "main": "./out/extension.js",
   "repository": {
@@ -19,6 +20,7 @@
     "url": "https://github.com/CelebiProjects/celebi_vscode_plugin.git"
   },
   "scripts": {
+    "vscode:prepublish": "npm run compile",
     "build:package": "node scripts/build-package.js",
     "compile": "npm run build:package && tsc -p .",
     "test": "jest"

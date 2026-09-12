@@ -50,11 +50,14 @@ export class RootViewer implements vscode.Disposable {
         const scriptUri = webview.asWebviewUri(
             vscode.Uri.joinPath(this.context.extensionUri, 'media', 'rootViewer.js')
         );
+        const sourceScriptUri = webview.asWebviewUri(
+            vscode.Uri.joinPath(this.context.extensionUri, 'media', 'rootFileSource.js')
+        );
         const styleUri = webview.asWebviewUri(
             vscode.Uri.joinPath(this.context.extensionUri, 'media', 'rootViewer.css')
         );
         const fileUri = source ? sourceUri : webview.asWebviewUri(sourceUri);
-        panel.webview.html = this.getHtml(webview, name, fileUri, jsrootUri, scriptUri, styleUri);
+        panel.webview.html = this.getHtml(webview, name, fileUri, jsrootUri, scriptUri, styleUri, sourceScriptUri);
 
         panel.onDidDispose(() => {
             diagnostics.dispose();
@@ -70,6 +73,7 @@ export class RootViewer implements vscode.Disposable {
         jsrootUri: vscode.Uri,
         scriptUri: vscode.Uri,
         styleUri: vscode.Uri,
+        sourceScriptUri: vscode.Uri,
     ): string {
         const nonce = randomNonce();
         const connectOrigin = escapeAttribute(new URL(fileUri.toString()).origin);
@@ -85,6 +89,7 @@ export class RootViewer implements vscode.Disposable {
 <title>${escapeHtml(name)}</title>
 <link href="${styleUri}" rel="stylesheet">
 <script nonce="${nonce}" src="${jsrootUri}"></script>
+<script nonce="${nonce}" src="${sourceScriptUri}"></script>
 </head>
 <body>
 <div id="loading">Opening ${escapeHtml(name)} using byte-range streaming…</div>

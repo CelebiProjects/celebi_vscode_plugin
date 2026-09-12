@@ -7,6 +7,7 @@ import type * as vscode from 'vscode';
 interface RegisteredSource {
     url: URL;
     name: string;
+    allowFullDownload: boolean;
 }
 
 export interface ProxiedRootSource extends vscode.Disposable {
@@ -30,7 +31,7 @@ export class RootRangeProxy implements vscode.Disposable {
         });
     }
 
-    async register(url: string, name: string): Promise<ProxiedRootSource> {
+    async register(url: string, name: string, allowFullDownload = false): Promise<ProxiedRootSource> {
         const upstream = new URL(url);
         if (upstream.protocol !== 'http:' && upstream.protocol !== 'https:') {
             throw new Error(`Unsupported ROOT file URL protocol: ${upstream.protocol}`);
@@ -38,7 +39,7 @@ export class RootRangeProxy implements vscode.Disposable {
 
         const port = await this.ensureListening();
         const token = crypto.randomBytes(24).toString('hex');
-        this.sources.set(token, { url: upstream, name });
+        this.sources.set(token, { url: upstream, name, allowFullDownload });
         const proxyUrl = `http://127.0.0.1:${port}/${token}/${encodeURIComponent(name || 'result.root')}`;
         return {
             url: proxyUrl,
@@ -94,7 +95,7 @@ export class RootRangeProxy implements vscode.Disposable {
         // answer a ranged request with a streamed 200; that response is handled
         // below so those files remain viewable.
         const range = request.headers.range;
-        if (request.method === 'GET' && !range) {
+        if (request.method === 'GET' && !range && !source.allowFullDownload) {
             this.fail(response, 416, 'A byte-range request is required for remote ROOT files.');
             return;
         }

@@ -48,6 +48,13 @@ describe('impression result payloads', () => {
 });
 
 describe('parseWebviewMessage', () => {
+    test('collect requires an explicit node and nonempty impression', () => {
+        const message = { type: 'collectImpression', nodeId: 'task', impression: 'old-impression' };
+        expect(parseWebviewMessage(message)).toEqual(message);
+        expect(parseWebviewMessage({ ...message, impression: '' })).toBeNull();
+        expect(parseWebviewMessage({ ...message, impression: 1 })).toBeNull();
+        expect(parseWebviewMessage({ type: 'collectImpression', impression: 'i' })).toBeNull();
+    });
     test('validates inline README editing messages, including empty content', () => {
         expect(parseWebviewMessage({ type: 'editReadme', nodeId: 'task' })).toEqual({ type: 'editReadme', nodeId: 'task' });
         expect(parseWebviewMessage({ type: 'saveReadme', nodeId: 'task', session: 'edit-1', content: '' }))

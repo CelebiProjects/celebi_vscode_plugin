@@ -7,14 +7,14 @@
  */
 import * as vscode from 'vscode';
 
-export function getDetailHtml(webview: vscode.Webview, scriptUri: vscode.Uri, yamlScriptUri: vscode.Uri): string {
+export function getDetailHtml(webview: vscode.Webview, scriptUri: vscode.Uri, yamlScriptUri: vscode.Uri, pdfScriptUri?: vscode.Uri): string {
     const nonce = getNonce();
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy"
-      content="default-src 'none'; img-src ${webview.cspSource} http: https: data:; style-src ${webview.cspSource} 'unsafe-inline'; script-src ${webview.cspSource} 'nonce-${nonce}';">
+      content="default-src 'none'; connect-src ${webview.cspSource} http: https:; worker-src blob:; font-src ${webview.cspSource} data:; img-src ${webview.cspSource} http: https: data:; style-src ${webview.cspSource} 'unsafe-inline'; script-src ${webview.cspSource} 'nonce-${nonce}';">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Celebi Detail</title>
 <style>
@@ -176,7 +176,11 @@ export function getDetailHtml(webview: vscode.Webview, scriptUri: vscode.Uri, ya
   </div>
 
   <div class="section" id="resultsSection" hidden>
-    <h4>Results</h4>
+    <div style="display:flex;align-items:baseline;gap:0.6rem">
+      <h4>Results</h4>
+      <button id="collectResults" class="readmeButton" disabled>Collect</button>
+    </div>
+    <div id="collectStatus" role="status" aria-live="polite"></div>
     <div id="resultsStatus"></div>
     <div id="resultGrid" class="resultGrid"></div>
   </div>
@@ -195,6 +199,7 @@ export function getDetailHtml(webview: vscode.Webview, scriptUri: vscode.Uri, ya
 <div id="lightbox" hidden><img id="lightboxImg" alt=""></div>
 
 <script nonce="${nonce}" src="${yamlScriptUri}"></script>
+${pdfScriptUri ? `<script nonce="${nonce}" src="${pdfScriptUri}"></script>` : ''}
 <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;

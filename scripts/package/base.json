@@ -34,7 +34,8 @@
     "jsroot": "^7.11.0",
     "ts-jest": "^29.4.9",
     "tslib": "^2.6.2",
-    "typescript": "^5.1.6"
+    "typescript": "^5.1.6",
+    "pdfjs-dist": "^6.3.289"
   },
   "contributes": {}
 }

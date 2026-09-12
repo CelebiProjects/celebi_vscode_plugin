@@ -47,6 +47,7 @@ export interface ReadmeEditResult {
 export type ExtensionToWebview = SelectNodePayload | ImpressionResultsPayload | ReadmeEditResult;
 
 export type WebviewToExtension =
+    | { type: 'collectImpression'; nodeId: string; impression: string }
     | { type: 'selectImpression'; impression: string }
     | { type: 'navigateToPath'; path: string }
     | { type: 'openRemoteRootFile'; name: string; url: string }
@@ -100,6 +101,10 @@ export function buildImpressionError(message: string, selection?: number, nodeId
 export function parseWebviewMessage(raw: unknown): WebviewToExtension | null {
     if (!raw || typeof raw !== 'object') return null;
     const msg = raw as Record<string, unknown>;
+    if (msg.type === 'collectImpression' && typeof msg.nodeId === 'string'
+        && typeof msg.impression === 'string' && msg.impression.trim()) {
+        return { type: msg.type, nodeId: msg.nodeId, impression: msg.impression };
+    }
     if ((msg.type === 'editReadme' || msg.type === 'editYaml') && typeof msg.nodeId === 'string') {
         return { type: msg.type, nodeId: msg.nodeId };
     }

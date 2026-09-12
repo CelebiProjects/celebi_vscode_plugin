@@ -4,13 +4,15 @@
     const errorBox = document.getElementById('error');
     const vscode = acquireVsCodeApi();
     let timer;
+    let source;
 
     function showError(error) {
+        source?.closeFile();
         loading.hidden = true;
         errorBox.hidden = false;
         errorBox.textContent = error instanceof Error ? error.message : String(error);
         console.error('[Celebi ROOT viewer]', error);
-        vscode.postMessage({ type: 'rootDiagnostic', message: errorBox.textContent });
+        vscode.postMessage({ type: 'rootDiagnostic', message: error?.stack || errorBox.textContent });
     }
 
     try {
@@ -31,7 +33,8 @@
             reject(new Error('Timed out while opening the ROOT file. The server may be slow or unavailable.')), 120000); });
         const open = async () => {
             await hierarchy.createBrowser('fix');
-            const file = await jsroot.openFile(script.dataset.fileUri);
+            source = new globalThis.CelebiRootFileSource(script.dataset.fileUri);
+            const file = await jsroot.openFile(source);
             hierarchy.h = hierarchy.fileHierarchy(file);
             hierarchy.h._isopen = true;
             await hierarchy.refreshHtml();

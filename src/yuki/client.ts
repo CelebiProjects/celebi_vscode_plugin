@@ -27,6 +27,8 @@ export interface ImpressionFile {
     type: string;
     is_plot: boolean;
     is_image: boolean;
+    is_pdf?: boolean;
+    previewUrl?: string;
     url: string;
     project_uuid: string;
     impression: string;
@@ -94,11 +96,11 @@ export class YukiClient {
         this._baseUrl = normalizeBaseUrl(url);
     }
 
-    private async request(method: 'get' | 'post', path: string): Promise<unknown> {
+    private async request(method: 'get' | 'post', path: string, timeout = DEFAULT_TIMEOUT): Promise<unknown> {
         const url = `${this._baseUrl}${path}`;
-        // 10s timeout applies to injected transports too (keeps tests honest)
+        // Collect may transfer files for several minutes; reads use the default timeout.
         const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT);
+        const timer = setTimeout(() => controller.abort(), timeout);
         try {
             const response = await this.fetchImpl(url, { method, signal: controller.signal });
             if (response.status < 200 || response.status >= 300) {
@@ -131,14 +133,38 @@ export class YukiClient {
         return items;
     }
 
+    /** Collect the selected impression's plots and logs, matching Celebi's collect command. */
+    async collectImpression(projectUuid: string, impression: string): Promise<void> {
+        const report = await this.request('get', `/collect/${encodeURIComponent(projectUuid)}/${encodeURIComponent(impression)}`, 600_000);
+        const errors: string[] = [];
+        const inspect = (value: unknown): void => {
+            if (!value || typeof value !== 'object') return;
+            const entry = value as Record<string, unknown>;
+            if (entry.success === false) errors.push(String(entry.message || 'Collection failed.'));
+            if (Array.isArray(entry.failed)) {
+                for (const file of entry.failed) {
+                    errors.push(typeof file === 'object' && file !== null
+                        ? `${file.file || 'File'}: ${file.reason || 'collection failed'}` : String(file));
+                }
+            }
+            for (const [key, child] of Object.entries(entry)) {
+                if (key !== 'failed') inspect(child);
+            }
+        };
+        inspect(report);
+        if (errors.length) throw new Error(errors.join('\n'));
+    }
+
     private normalizeImpressionFile(entry: unknown, projectUuid: string, impression: string): ImpressionFile | null {
         if (!entry || typeof entry !== 'object') return null;
         const e = entry as Record<string, unknown>;
         const name = String(e.name || e.filename || e.path || e.file || e.label || '');
+        const filePath = String(e.path || e.filename || name);
+        const isPdf = [name, filePath, String(e.url || e.href || e.src || '')]
+            .some(value => /\.pdf(?:[?#]|$)/i.test(value));
         const isPlot = Boolean(e.is_plot ?? e.is_image ?? e.isImage)
             || e.type === 'plot'
-            || looksLikeImage(name);
-        const filePath = String(e.path || e.filename || name);
+            || looksLikeImage(name) || isPdf;
         const inYuki = Boolean(e.in_yuki);
         const fallbackUrl = buildFileUrl(this._baseUrl, projectUuid, impression, filePath, !inYuki);
         const suppliedUrl = String(e.url || e.href || e.src || fallbackUrl);
@@ -148,7 +174,8 @@ export class YukiClient {
             path: filePath,
             type: String(e.type || (isPlot ? 'plot' : 'data')),
             is_plot: isPlot,
-            is_image: isPlot,
+            is_image: isPlot && !isPdf,
+            is_pdf: isPdf,
             url: resolvedUrl,
             project_uuid: String(e.project_uuid || projectUuid),
             impression: String(e.impression || impression),

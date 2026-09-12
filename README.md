@@ -8,6 +8,8 @@ A VS Code extension for browsing [CelebiChrono](https://github.com/celebi) proje
 - **Detail Webview**: Click any node to see its metadata, README, parameters, commands, predecessors/successors, and task results
 - **Inline README Editing**: Use Edit, Save, and Cancel in the README section of the detail preview. Works for object READMEs and selected `README.md` files; drafts survive selection changes while the panel remains open.
 - **Task Results**: Automatically fetch job status and output files (plots, data, logs) from the DITE server for submitted tasks
+- **Collect Results**: Click **Collect** beside Results to collect plots and logs for the selected impression and refresh the results.
+- **PDF Plots**: PDF results appear alongside image plots with a first-page preview. Click to enlarge, or follow the filename link to open the full PDF.
 - **ROOT Viewer**: Open local or remote `.root` results with JSROOT; remote files use byte-range streaming instead of a full download
 - **Impression Selector**: Switch between historical impressions of a task
 - **Auto-refresh**: Tree automatically refreshes when project files change

@@ -85,6 +85,9 @@ export function activate(context: vscode.ExtensionContext): void {
     // must not overwrite newer ones.
     let selectionSeq = 0;
     let selectedNodeId = '';
+    let selectedImpression = '';
+    const availableImpressions = new Set<string>();
+    const collecting = new Set<string>();
 
     const loadImpression = async (impression: string, mySeq: number, currentNodeId: string): Promise<void> => {
         availableRemoteRoots.clear();
@@ -129,7 +132,23 @@ export function activate(context: vscode.ExtensionContext): void {
         },
         onSaveYaml: (nodeId, session, content) => yamlEditor.save(nodeId, session, content),
         onSelectImpression: async (impression) => {
-            await loadImpression(impression, selectionSeq, selectedNodeId);
+            if (!availableImpressions.has(impression)) return;
+            selectedImpression = impression;
+            await loadImpression(impression, ++selectionSeq, selectedNodeId);
+        },
+        onCollectImpression: async (nodeId, impression) => {
+            if (!meta.projectUuid || nodeId !== selectedNodeId || impression !== selectedImpression) {
+                throw new Error('Select the impression again before collecting its results.');
+            }
+            if (collecting.has(impression)) throw new Error('This impression is already being collected.');
+            const mySeq = selectionSeq;
+            collecting.add(impression);
+            try {
+                await yuki.collectImpression(meta.projectUuid, impression);
+            } finally {
+                collecting.delete(impression);
+                if (mySeq === selectionSeq) await loadImpression(impression, mySeq, nodeId);
+            }
         },
         onNavigate: async (targetPath) => {
             const item = await provider.resolveItem(targetPath);
@@ -177,6 +196,8 @@ export function activate(context: vscode.ExtensionContext): void {
         const mySeq = ++selectionSeq;
         const node = item.node;
         selectedNodeId = node.id;
+        selectedImpression = '';
+        availableImpressions.clear();
 
         // Status/error rows are not explorable objects — skip the detail panel.
         if (node.id === '__dite_status__' || node.id.startsWith('__error__')) return;
@@ -224,6 +245,15 @@ export function activate(context: vscode.ExtensionContext): void {
         }
         const result = apiDetail.value as ObjectDetailData;
         const mergedConfig = result.config;
+        if (node.celebiType === 'task') {
+            if (typeof mergedConfig.impression === 'string') availableImpressions.add(mergedConfig.impression);
+            if (Array.isArray(mergedConfig.impressions)) {
+                for (const entry of mergedConfig.impressions) {
+                    const uuid = typeof entry === 'string' ? entry : entry?.uuid;
+                    if (typeof uuid === 'string') availableImpressions.add(uuid);
+                }
+            }
+        }
         nodeDetail.data = { ...nodeDetail.data, ...result.data };
         detail.show(buildSelectNodePayload(
             nodeDetail, mergedConfig, result.readme, { ...provider.getTypeMap(), ...result.typeMap }, meta.projectUuid
@@ -234,6 +264,7 @@ export function activate(context: vscode.ExtensionContext): void {
         // Auto-fetch results for the default impression when a task is selected
         const impression = mergedConfig.impression as string | undefined;
         if (node.celebiType === 'task' && impression && meta.projectUuid) {
+            selectedImpression = impression;
             const resultsStarted = performance.now();
             await loadImpression(impression, mySeq, node.id);
             timing('detail.results.done', { node: node.id, results_ms: elapsed(resultsStarted) });

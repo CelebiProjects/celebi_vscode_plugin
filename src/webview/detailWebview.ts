@@ -9,6 +9,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { getDetailHtml } from './detailHtml';
 import { ExtensionToWebview, parseWebviewMessage } from './detailMessages';
+import { RootRangeProxy, ProxiedRootSource } from '../rootViewer/rangeProxy';
 
 export interface DetailWebviewCallbacks {
     onEditReadme(nodeId: string): Promise<{ session: string; content: string }>;
@@ -16,6 +17,7 @@ export interface DetailWebviewCallbacks {
     onEditYaml(nodeId: string): Promise<{ session: string; content: string }>;
     onSaveYaml(nodeId: string, session: string, content: string): Promise<string>;
     onSelectImpression(impression: string): void;
+    onCollectImpression(nodeId: string, impression: string): Promise<void>;
     onNavigate(path: string): void;
     onOpenRemoteRootFile(name: string, url: string): void;
     onOpenLocalRootFile(path: string): void;
@@ -27,6 +29,9 @@ export class DetailWebviewProvider implements vscode.Disposable {
     private panel: vscode.WebviewPanel | undefined;
     private selectedNodeId: string | undefined;
     private readonly disposables: vscode.Disposable[] = [];
+    private readonly pdfProxy = new RootRangeProxy();
+    private pdfSources: ProxiedRootSource[] = [];
+    private resultVersion = 0;
 
     constructor(
         private readonly callbacks: DetailWebviewCallbacks,
@@ -50,11 +55,21 @@ export class DetailWebviewProvider implements vscode.Disposable {
                 vscode.Uri.file(path.join(this.extensionPath, 'media', 'detail.js'))
             );
             const yamlScriptUri = this.panel.webview.asWebviewUri(vscode.Uri.file(path.join(this.extensionPath, 'media', 'yamlPreview.js')));
-            this.panel.webview.html = getDetailHtml(this.panel.webview, scriptUri, yamlScriptUri);
+            const pdfScriptUri = this.panel.webview.asWebviewUri(vscode.Uri.file(path.join(this.extensionPath, 'media', 'pdfPreview.js')));
+            this.panel.webview.html = getDetailHtml(this.panel.webview, scriptUri, yamlScriptUri, pdfScriptUri);
             const panel = this.panel;
             this.panel.webview.onDidReceiveMessage(async (raw: unknown) => {
                 const msg = parseWebviewMessage(raw);
                 if (!msg) return;
+                if (msg.type === 'collectImpression') {
+                    let error = '';
+                    try {
+                        await this.callbacks.onCollectImpression(msg.nodeId, msg.impression);
+                    } catch (err) {
+                        error = err instanceof Error ? err.message : String(err);
+                    }
+                    void panel.webview.postMessage({ type: 'collectResult', nodeId: msg.nodeId, impression: msg.impression, error });
+                }
                 if (msg.type === 'editReadme' || msg.type === 'saveReadme' || msg.type === 'editYaml' || msg.type === 'saveYaml') {
                     const opening = msg.type === 'editReadme' || msg.type === 'editYaml';
                     const isYaml = msg.type === 'editYaml' || msg.type === 'saveYaml';
@@ -85,13 +100,42 @@ export class DetailWebviewProvider implements vscode.Disposable {
                     this.callbacks.onOpenLocalRootFile(msg.path);
                 }
             }, undefined, this.disposables);
-            this.panel.onDidDispose(() => { this.panel = undefined; }, undefined, this.disposables);
+            this.panel.onDidDispose(() => { this.panel = undefined; this.clearPdfSources(); }, undefined, this.disposables);
         }
         this.panel.reveal(undefined, true);
-        void this.panel.webview.postMessage(payload);
+        if (payload.type === 'selectNode' || payload.type === 'impressionResults') this.clearPdfSources();
+        void this.postPayload(this.panel, payload, this.resultVersion);
+    }
+
+    private clearPdfSources(): void {
+        this.resultVersion++;
+        for (const source of this.pdfSources) source.dispose();
+        this.pdfSources = [];
+    }
+
+    private async postPayload(panel: vscode.WebviewPanel, payload: ExtensionToWebview, version: number): Promise<void> {
+        if (payload.type === 'impressionResults' && payload.state === 'ready') {
+            const items = await Promise.all(payload.items.map(async item => {
+                if (!item.is_pdf) return item;
+                try {
+                    // Reuse the byte-range bridge so DITE does not need browser CORS support.
+                    const source = await this.pdfProxy.register(item.url, item.name, true);
+                    if (version !== this.resultVersion) source.dispose();
+                    else this.pdfSources.push(source);
+                    return { ...item, previewUrl: source.url };
+                } catch {
+                    return item; // The preview shows an error and retains the original file link.
+                }
+            }));
+            if (version !== this.resultVersion || this.panel !== panel) return;
+            payload = { ...payload, items };
+        }
+        void panel.webview.postMessage(payload);
     }
 
     dispose(): void {
+        this.clearPdfSources();
+        this.pdfProxy.dispose();
         this.panel?.dispose();
         for (const d of this.disposables) {
             d.dispose();

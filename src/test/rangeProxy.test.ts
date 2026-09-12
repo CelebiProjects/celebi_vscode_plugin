@@ -13,6 +13,27 @@ function close(server: http.Server): Promise<void> {
 }
 
 describe('RootRangeProxy', () => {
+    test('allows the initial non-range GET for PDF previews when explicitly enabled', async () => {
+        const upstream = http.createServer((_request, response) => {
+            response.writeHead(200, { 'Content-Type': 'application/pdf' });
+            response.end('%PDF-1.4');
+        });
+        const port = await listen(upstream);
+        const proxy = new RootRangeProxy();
+        try {
+            const source = await proxy.register(`http://127.0.0.1:${port}/plot.pdf`, 'plot.pdf', true);
+            const response = await fetch(source.url);
+            expect(response.status).toBe(200);
+            expect(await response.text()).toBe('%PDF-1.4');
+            expect(response.headers.get('access-control-allow-origin')).toBe('*');
+            source.dispose();
+            expect((await fetch(source.url)).status).toBe(404);
+        } finally {
+            proxy.dispose();
+            await close(upstream);
+        }
+    });
+
     test('forwards byte ranges and streams a 206 response', async () => {
         let receivedRange = '';
         const upstream = http.createServer((request, response) => {

@@ -57,6 +57,23 @@ describe('YukiClient.fetchImpressionResults', () => {
         expect(items.map((f) => f.name)).toEqual(['a.png', 'b.root']);
     });
 
+    test('PDFs are plots, not images, including path and URL aliases', async () => {
+        const client = new YukiClient('https://dite.example.test', () => Promise.resolve(jsonResponse([
+            { name: 'a.txt' },
+            { name: 'z.PDF', is_plot: false, in_yuki: true },
+            { name: 'fit', path: 'figures/fit.pdf', is_image: true },
+            { name: 'report', url: '/export/report.pdf?download=1' },
+        ])));
+        const items = await client.fetchImpressionResults('p', 'i');
+        expect(items.map(item => item.name)).toEqual(['fit', 'report', 'z.PDF', 'a.txt']);
+        for (const item of items.slice(0, 3)) {
+            expect(item.is_plot).toBe(true);
+            expect(item.is_pdf).toBe(true);
+            expect(item.is_image).toBe(false);
+        }
+        expect(items[2].url).toBe('https://dite.example.test/export/p/i/z.PDF');
+    });
+
     test('coerces {items}/{files}/{impression_data} response shapes', async () => {
         for (const shape of [
             { items: [{ name: 'x.root' }] },
@@ -144,6 +161,23 @@ describe('YukiClient status and workflow', () => {
 });
 
 describe('YukiClient timeout', () => {
+    test('collect allows up to ten minutes for file transfers', async () => {
+        jest.useFakeTimers();
+        let signal: AbortSignal | undefined;
+        const client = new YukiClient('http://localhost', (_url, init) => {
+            signal = init?.signal;
+            return new Promise((_, reject) => signal?.addEventListener('abort', () => reject(new Error('aborted'))));
+        });
+        try {
+            const pending = client.collectImpression('p', 'i');
+            jest.advanceTimersByTime(10_001);
+            expect(signal?.aborted).toBe(false);
+            jest.advanceTimersByTime(600_000);
+            await expect(pending).rejects.toThrow('aborted');
+        } finally {
+            jest.useRealTimers();
+        }
+    });
     test('aborts after 10s', async () => {
         jest.useFakeTimers();
         const fetchImpl = (_url: string, init?: { signal?: AbortSignal }) =>
@@ -155,5 +189,27 @@ describe('YukiClient timeout', () => {
         jest.advanceTimersByTime(10_001);
         await expect(promise).rejects.toThrow();
         jest.useRealTimers();
+    });
+});
+
+describe('YukiClient collect', () => {
+    test('collects the requested impression using the DITE collect endpoint', async () => {
+        const fetchImpl = jest.fn().mockResolvedValue(jsonResponse('ok'));
+        const client = new YukiClient('https://dite.example', fetchImpl);
+        await client.collectImpression('project id', 'older-impression');
+        expect(fetchImpl).toHaveBeenCalledWith('https://dite.example/collect/project%20id/older-impression',
+            expect.objectContaining({ method: 'get' }));
+    });
+
+    test('reports failed transfers even when the server returns HTTP 200', async () => {
+        const client = new YukiClient('https://dite.example', () => Promise.resolve(jsonResponse({
+            plots: { runner: { collected: [], skipped: [], failed: [{ file: 'fit.pdf', reason: 'connection lost' }] } },
+        })));
+        await expect(client.collectImpression('p', 'i')).rejects.toThrow('fit.pdf: connection lost');
+    });
+
+    test('propagates HTTP failures', async () => {
+        const client = new YukiClient('https://dite.example', () => Promise.resolve(jsonResponse('failed', 500)));
+        await expect(client.collectImpression('p', 'i')).rejects.toThrow('HTTP 500');
     });
 });

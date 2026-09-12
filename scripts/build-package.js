@@ -68,3 +68,15 @@ for (const codec of ['zstd.mjs', 'lzma.mjs']) {
 const commands = base.contributes.commands?.length || 0;
 const contextItems = base.contributes.menus?.['view/item/context']?.length || 0;
 console.log(`package.json built: ${commands} commands, ${contextItems} context menu items; JSROOT copied`);
+
+// PDF previews run offline from the packaged PDF.js distribution.
+const pdfSource = path.join(root, 'node_modules', 'pdfjs-dist');
+const pdfVendor = path.join(vendorDir, 'pdfjs');
+fs.mkdirSync(pdfVendor, { recursive: true });
+for (const file of ['pdf.mjs', 'pdf.worker.mjs']) {
+  fs.copyFileSync(path.join(pdfSource, 'legacy', 'build', file), path.join(pdfVendor, file));
+}
+for (const directory of ['cmaps', 'standard_fonts', 'wasm']) {
+  fs.cpSync(path.join(pdfSource, directory), path.join(pdfVendor, directory), { recursive: true });
+}
+fs.copyFileSync(path.join(pdfSource, 'LICENSE'), path.join(pdfVendor, 'LICENSE'));

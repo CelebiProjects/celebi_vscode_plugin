@@ -5,6 +5,16 @@
 
     let current = null;
     let currentSelection = 0;
+    const collections = new Map();
+    const collectionKey = (nodeId, impression) => JSON.stringify([nodeId, impression]);
+
+    function renderCollect() {
+        const impression = current?.config?.impression || '';
+        const state = collections.get(collectionKey(current?.node.id, impression));
+        $('collectResults').disabled = !impression || !current?.projectUuid || !!state?.pending;
+        $('collectResults').textContent = state?.pending ? 'Collecting…' : 'Collect';
+        $('collectStatus').textContent = state?.message || '';
+    }
     // Keep drafts when changing selection or receiving the second detail payload.
     const editableFiles = [
         { id: 'readme', message: 'Readme', name: 'README.md', drafts: new Map() },
@@ -37,7 +47,7 @@
     function esc(text) {
         const div = document.createElement('div');
         div.textContent = text === null || text === undefined ? '' : String(text);
-        return div.innerHTML;
+        return div.innerHTML.replace(/"/g, '&quot;');
     }
 
     function hideAllSections() {
@@ -55,8 +65,10 @@
     }
 
     function renderNode(msg) {
+        window.clearPdfPreviews();
         current = msg;
         currentSelection += 1;
+        renderCollect();
         hideAllSections();
         $('emptyState').hidden = true;
         $('detail').hidden = false;
@@ -175,6 +187,7 @@
     function renderResults(msg) {
         if (!current || current.node.celebiType !== 'task') return;
         if (msg.nodeId !== undefined && msg.nodeId !== current.node.id) return;
+        window.clearPdfPreviews();
         $('resultsSection').hidden = false;
         if (msg.state === 'loading') {
             $('resultsStatus').textContent = 'Loading results...';
@@ -212,9 +225,16 @@
         }
         $('resultsStatus').textContent = '';
         $('resultGrid').innerHTML = items.map((item) => {
+            if (item.is_pdf) {
+                return '<div class="resultItem pdfPlot" data-preview-url="' + esc(item.previewUrl || item.url) + '">' +
+                    '<img class="resultImage" alt="' + esc(item.name) + ' (first page)" hidden>' +
+                    '<div class="pdfStatus unsupported" role="status">Loading PDF…</div>' +
+                    '<a class="resultFileLink" href="' + esc(item.url) + '" target="_blank" rel="noopener noreferrer">' + esc(item.name) + '</a>' +
+                    '</div>';
+            }
             if (item.is_plot) {
                 return '<div class="resultItem">' +
-                    '<img class="resultImage" alt="' + esc(item.name) + '" data-url="' + esc(item.url) + '" data-name="' + esc(item.name) + '" loading="lazy">' +
+                    '<img class="resultImage" alt="' + esc(item.name) + '" src="' + esc(item.url) + '" data-url="' + esc(item.url) + '" data-name="' + esc(item.name) + '" loading="lazy">' +
                     '</div>';
             }
             if (/\.root$/i.test(item.name) || /\.root(?:[?#]|$)/i.test(item.url)) {
@@ -226,13 +246,26 @@
                 '<div class="resultFile"><span>📄</span><a class="resultFileLink" href="' + esc(item.url) + '" target="_blank" rel="noopener noreferrer">' + esc(item.name) + '</a></div>' +
                 '</div>';
         }).join('');
+        void window.renderPdfPreviews($('resultGrid'));
     }
 
     // Impression selector
     $('impressionSelect').addEventListener('change', (e) => {
         if (e.target.value) {
+            current.config.impression = e.target.value;
+            $('impressionId').textContent = e.target.value;
+            renderCollect();
             vscode.postMessage({ type: 'selectImpression', impression: e.target.value });
         }
+    });
+
+    $('collectResults').addEventListener('click', () => {
+        if ($('collectResults').disabled) return;
+        const nodeId = current.node.id;
+        const impression = current.config.impression;
+        collections.set(collectionKey(nodeId, impression), { pending: true });
+        renderCollect();
+        vscode.postMessage({ type: 'collectImpression', nodeId, impression });
     });
 
     // Relation tags (delegated)
@@ -329,6 +362,12 @@
 
     window.addEventListener('message', (event) => {
         const msg = event.data;
+        if (msg.type === 'collectResult') {
+            collections.set(collectionKey(msg.nodeId, msg.impression), {
+                pending: false, message: msg.error ? 'Collect failed: ' + msg.error : 'Collect complete.',
+            });
+            renderCollect();
+        }
         if (msg.type === 'selectNode') renderNode(msg);
         if (msg.type === 'impressionResults') renderResults(msg);
         const file = editableFiles.find(file => msg.type === file.id + 'EditResult');

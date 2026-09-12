@@ -204,6 +204,8 @@ export function activate(context: vscode.ExtensionContext): void {
 
         timing('detail.selection', { node: node.id, selection: mySeq });
         if (node.type === 'file') {
+            // Algorithm source files open through the tree item's native editor command.
+            if (item.command?.command === 'vscode.open') return;
             const fileData = node.data as Record<string, unknown>;
             const absolutePath = String(fileData.absolutePath || path.join(projectRoot, node.id));
             const nodeDetail: NodeDetail = {

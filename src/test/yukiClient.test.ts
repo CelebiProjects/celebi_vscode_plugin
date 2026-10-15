@@ -47,6 +47,31 @@ describe('YukiClient.fetchImpressionResults', () => {
         expect(items[1].in_yuki).toBe(true);
     });
 
+    test('fetches log files through the dedicated runner log route', async () => {
+        const calls: string[] = [];
+        const client = new YukiClient('https://dite.example', (url: string) => {
+            calls.push(url);
+            if (url.endsWith('/machine-id/local')) {
+                return Promise.resolve(jsonResponse('runner-uuid'));
+            }
+            return Promise.resolve(jsonResponse([
+                { name: 'job.log', path: 'runner/job.log', in_yuki: true },
+            ]));
+        });
+
+        const items = await client.fetchImpressionLogs('project', 'impression', 'local');
+
+        expect(calls).toEqual(expect.arrayContaining([
+            'https://dite.example/file-status/project/impression/none?kind=logs',
+            'https://dite.example/machine-id/local',
+        ]));
+        expect(items).toHaveLength(1);
+        expect(items[0].name).toBe('job.log');
+        expect(items[0].url).toBe(
+            'https://dite.example/log-view/project/impression/runner-uuid/runner/job.log'
+        );
+    });
+
     test('plots are sorted before other files', async () => {
         const fetchImpl = () => Promise.resolve(jsonResponse([
             { name: 'b.root' },

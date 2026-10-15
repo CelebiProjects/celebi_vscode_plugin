@@ -1,8 +1,8 @@
 {
   "name": "celebi",
   "displayName": "Celebi",
-  "publisher": "mzhao",
-  "version": "0.0.3",
+  "publisher": "celebi",
+  "version": "0.0.5",
   "icon": "media/icon.png",
   "engines": {
     "vscode": "^1.85.0"
@@ -86,6 +86,16 @@
         "command": "celebi.refreshTree",
         "title": "Refresh Celebi Tree",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "celebi.copyPath",
+        "title": "Copy Path",
+        "icon": "$(copy)"
+      },
+      {
+        "command": "celebi.copyRelativePath",
+        "title": "Copy Relative Path",
+        "icon": "$(copy)"
       }
     ],
     "menus": {
@@ -94,6 +104,18 @@
           "command": "celebi.refreshTree",
           "when": "view == celebiTreeView",
           "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "celebi.copyPath",
+          "when": "view == celebiTreeView && viewItem =~ /^(object|directory|file)$/",
+          "group": "9_cutcopypaste@1"
+        },
+        {
+          "command": "celebi.copyRelativePath",
+          "when": "view == celebiTreeView && viewItem =~ /^(object|directory|file)$/",
+          "group": "9_cutcopypaste@2"
         }
       ]
     }

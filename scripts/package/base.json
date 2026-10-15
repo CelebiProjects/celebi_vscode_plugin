@@ -1,8 +1,8 @@
 {
   "name": "celebi",
   "displayName": "Celebi",
-  "publisher": "mzhao",
-  "version": "0.0.3",
+  "publisher": "celebi",
+  "version": "0.0.5",
   "icon": "media/icon.png",
   "engines": {
     "vscode": "^1.85.0"

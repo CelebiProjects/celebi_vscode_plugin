@@ -85,6 +85,15 @@ export function getDetailHtml(webview: vscode.Webview, scriptUri: vscode.Uri, ya
     button.resultFileLink { border: 0; padding: 0; background: none; font: inherit;
                             text-align: left; cursor: pointer; }
     button.resultFileLink:hover { text-decoration: underline; }
+    .resultOpenLink { color: var(--vscode-descriptionForeground); text-decoration: none; }
+    .resultOpenLink:hover { color: var(--vscode-textLink-activeForeground); }
+    .textResultStatus { margin: 0.35rem 0 0; color: var(--vscode-descriptionForeground); }
+    .textResultPreview { box-sizing: border-box; max-height: 28rem; margin: 0.45rem 0 0;
+                         padding: 0.7rem 0.8rem; overflow: auto;
+                         border: 1px solid var(--vscode-panel-border); border-radius: 4px;
+                         background: var(--vscode-textCodeBlock-background);
+                         font-family: var(--vscode-editor-font-family); line-height: 1.5;
+                         white-space: pre-wrap; overflow-wrap: anywhere; tab-size: 4; }
     .openRootButton { border: 0; border-radius: 3px; padding: 0.4rem 0.75rem;
                       color: var(--vscode-button-foreground);
                       background: var(--vscode-button-background); cursor: pointer; }

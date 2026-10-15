@@ -4,6 +4,16 @@ All notable changes to the "celebi" extension will be documented in this file.
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [0.0.5] - 2026-10-12
+
+### Added
+- Task logs in the Results panel, with expandable text previews.
+- Copy Path and Copy Relative Path actions for repository tree items.
+
+### Fixed
+- Files below Task objects now open in the VS Code editor like Algorithm files.
+- Task log links now use DITE's dedicated log endpoint instead of returning `NOTFOUND` from the stageout endpoint.
+
 ## [0.0.2] - 2026-09-07
 
 ### Added

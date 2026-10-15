@@ -42,7 +42,9 @@ export class CelebiTreeItem extends vscode.TreeItem {
         this.iconPath = icon.color
             ? new vscode.ThemeIcon(icon.id, new vscode.ThemeColor(icon.color))
             : new vscode.ThemeIcon(icon.id);
-        this.contextValue = node.type;
+        this.contextValue = node.id === '__dite_status__' || node.id.startsWith('__error__')
+            ? 'synthetic'
+            : node.type;
         this.tooltip = node.celebiType ? `${node.name} (${node.celebiType})` : node.name;
     }
 

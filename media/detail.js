@@ -184,6 +184,11 @@
         return '<p class="unsupported">Preview not available for .' + esc(file.ext) + ' files. Open externally to view.</p>';
     }
 
+    function isTextResult(item) {
+        return [item.name, item.path, item.url]
+            .some(value => /\.(?:txt|log|csv|md|json|ya?ml)(?:[?#]|$)/i.test(value || ''));
+    }
+
     function renderResults(msg) {
         if (!current || current.node.celebiType !== 'task') return;
         if (msg.nodeId !== undefined && msg.nodeId !== current.node.id) return;
@@ -242,11 +247,49 @@
                     '<div class="resultFile"><span>📊</span><button class="resultFileLink rootFileLink" data-url="' + esc(item.url) + '" data-name="' + esc(item.name) + '">' + esc(item.name) + '</button></div>' +
                     '</div>';
             }
+            if (isTextResult(item) && item.previewUrl) {
+                return '<div class="resultItem textResult" data-preview-url="' + esc(item.previewUrl) + '">' +
+                    '<div class="resultFile"><span>📄</span>' +
+                    '<button class="resultFileLink textFileLink" aria-expanded="false">' + esc(item.name) + '</button>' +
+                    '<a class="resultOpenLink" href="' + esc(item.url) + '" target="_blank" rel="noopener noreferrer" title="Open original file" aria-label="Open ' + esc(item.name) + ' in a new tab">↗</a></div>' +
+                    '<div class="textResultStatus" role="status" hidden></div>' +
+                    '<pre class="textResultPreview" tabindex="0" hidden><code></code></pre>' +
+                    '</div>';
+            }
             return '<div class="resultItem">' +
                 '<div class="resultFile"><span>📄</span><a class="resultFileLink" href="' + esc(item.url) + '" target="_blank" rel="noopener noreferrer">' + esc(item.name) + '</a></div>' +
                 '</div>';
         }).join('');
         void window.renderPdfPreviews($('resultGrid'));
+    }
+
+    async function toggleTextPreview(button) {
+        const card = button.closest('.textResult');
+        const preview = card.querySelector('.textResultPreview');
+        const status = card.querySelector('.textResultStatus');
+        if (card.dataset.loaded === 'true') {
+            preview.hidden = !preview.hidden;
+            button.setAttribute('aria-expanded', String(!preview.hidden));
+            return;
+        }
+        if (card.dataset.loading === 'true') return;
+        card.dataset.loading = 'true';
+        status.hidden = false;
+        status.textContent = 'Loading text preview…';
+        try {
+            const response = await fetch(card.dataset.previewUrl);
+            if (!response.ok) throw new Error('HTTP ' + response.status);
+            card.querySelector('.textResultPreview code').textContent = await response.text();
+            card.dataset.loaded = 'true';
+            preview.hidden = false;
+            status.hidden = true;
+            status.textContent = '';
+            button.setAttribute('aria-expanded', 'true');
+        } catch (error) {
+            status.textContent = 'Text preview unavailable: ' + (error?.message || String(error));
+        } finally {
+            delete card.dataset.loading;
+        }
     }
 
     // Impression selector
@@ -288,6 +331,11 @@
                 name: remoteRoot.dataset.name,
                 url: remoteRoot.dataset.url,
             });
+            return;
+        }
+        const textFile = e.target.closest('.textFileLink');
+        if (textFile) {
+            void toggleTextPreview(textFile);
             return;
         }
         const localRoot = e.target.closest('.openRootButton');

@@ -1,5 +1,7 @@
 {
   "commands": [
-    { "command": "celebi.refreshTree", "title": "Refresh Celebi Tree", "icon": "$(refresh)" }
+    { "command": "celebi.refreshTree", "title": "Refresh Celebi Tree", "icon": "$(refresh)" },
+    { "command": "celebi.copyPath", "title": "Copy Path", "icon": "$(copy)" },
+    { "command": "celebi.copyRelativePath", "title": "Copy Relative Path", "icon": "$(copy)" }
   ]
 }

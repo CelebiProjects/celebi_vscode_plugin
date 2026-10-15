@@ -78,6 +78,14 @@ export function buildFileUrl(baseUrl: string, projectUuid: string, impression: s
     return `${base}/${route}/${encodePath(projectUuid)}/${encodePath(impression)}/${encodePath(filePath)}`;
 }
 
+/** Build the dedicated Yuki URL for a collected task log. */
+export function buildLogFileUrl(
+    baseUrl: string, projectUuid: string, impression: string, runnerId: string, filePath: string
+): string {
+    const base = baseUrl.replace(/\/+$/, '');
+    return `${base}/log-view/${encodePath(projectUuid)}/${encodePath(impression)}/${encodePath(runnerId)}/${encodePath(filePath)}`;
+}
+
 export class YukiClient {
     private _baseUrl: string;
     private readonly fetchImpl: FetchLike;
@@ -131,6 +139,20 @@ export class YukiClient {
                 return a.name.localeCompare(b.name);
             });
         return items;
+    }
+
+    /** Fetch collected logs and attach URLs from Yuki's dedicated log route. */
+    async fetchImpressionLogs(projectUuid: string, impression: string, runner: string): Promise<ImpressionFile[]> {
+        const [items, runnerIdData] = await Promise.all([
+            this.fetchImpressionResults(projectUuid, impression, 'logs'),
+            this.request('get', `/machine-id/${encodePath(runner)}`),
+        ]);
+        const runnerId = typeof runnerIdData === 'string' ? runnerIdData.trim() : '';
+        if (!runnerId) throw new Error(`DITE did not return an ID for runner ${runner}`);
+        return items.map(item => ({
+            ...item,
+            url: buildLogFileUrl(this._baseUrl, projectUuid, impression, runnerId, item.path),
+        }));
     }
 
     /** Collect the selected impression's plots and logs, matching Celebi's collect command. */

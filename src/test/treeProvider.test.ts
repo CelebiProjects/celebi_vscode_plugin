@@ -1,6 +1,7 @@
 jest.mock('vscode', () => ({
     TreeItem: class { constructor(public label: string, public collapsibleState: number) {} },
     ThemeIcon: class {}, ThemeColor: class {},
+    Uri: { file: (value: string) => ({ fsPath: value }) },
     EventEmitter: class {
         private listeners: Array<(...args: any[]) => void> = [];
         event = (listener: (...args: any[]) => void) => {
@@ -76,6 +77,25 @@ test('navigation loads unexpanded ancestors and file nodes do not run Python', a
     expect(await provider.getChildren(file)).toEqual([]);
     expect(run).toHaveBeenCalledTimes(2);
     expect(await provider.resolveItem('../outside')).toBeUndefined();
+});
+
+test('files inside tasks open with their absolute filesystem URI', async () => {
+    const provider = new CelebiTreeProvider('/project');
+    run.mockResolvedValueOnce({ entries: [{
+        path: 'tasks/job', name: 'job', kind: 'object', type: 'task',
+        absolutePath: '/project/tasks/job',
+    }] }).mockResolvedValueOnce({ entries: [{
+        path: 'tasks/job/input.txt', name: 'input.txt', kind: 'file', type: null,
+        absolutePath: '/project/tasks/job/input.txt',
+    }] });
+
+    const [task] = await provider.getChildren();
+    const [file] = await provider.getChildren(task);
+
+    expect(file.resourceUri).toEqual({ fsPath: '/project/tasks/job/input.txt' });
+    expect(file.command).toEqual({
+        command: 'vscode.open', title: 'Open File', arguments: [file.resourceUri],
+    });
 });
 
 test('failed expansion can be retried', async () => {

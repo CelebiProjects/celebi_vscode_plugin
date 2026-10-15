@@ -2,6 +2,18 @@
   "menus": {
     "view/title": [
       { "command": "celebi.refreshTree", "when": "view == celebiTreeView", "group": "navigation" }
+    ],
+    "view/item/context": [
+      {
+        "command": "celebi.copyPath",
+        "when": "view == celebiTreeView && viewItem =~ /^(object|directory|file)$/",
+        "group": "9_cutcopypaste@1"
+      },
+      {
+        "command": "celebi.copyRelativePath",
+        "when": "view == celebiTreeView && viewItem =~ /^(object|directory|file)$/",
+        "group": "9_cutcopypaste@2"
+      }
     ]
   }
 }

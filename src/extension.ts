@@ -11,6 +11,7 @@ import * as vscode from 'vscode';
 import { CelebiTreeProvider } from './tree/treeProvider';
 import { CelebiTreeItem } from './treeItem';
 import { affectsTree } from './tree/treeChanges';
+import { resolveTreeItemPath, resolveTreeItemRelativePath } from './tree/treePath';
 import { YukiClient } from './yuki/client';
 import { readProjectMeta, readFileForPreview } from './projectMeta';
 import { runCelebiPython, ObjectDetailData, disposeCelebiPythonWorkers } from './celebiScript';
@@ -77,7 +78,15 @@ export function activate(context: vscode.ExtensionContext): void {
             await provider.refresh();
             void updateDiteStatus();
         }),
-        vscode.commands.registerCommand('celebi.refreshDite', () => void updateDiteStatus())
+        vscode.commands.registerCommand('celebi.refreshDite', () => void updateDiteStatus()),
+        vscode.commands.registerCommand('celebi.copyPath', async (item?: CelebiTreeItem) => {
+            const target = item && resolveTreeItemPath(projectRoot, item.nodeId);
+            if (target) await vscode.env.clipboard.writeText(target);
+        }),
+        vscode.commands.registerCommand('celebi.copyRelativePath', async (item?: CelebiTreeItem) => {
+            const target = item && resolveTreeItemRelativePath(projectRoot, item.nodeId);
+            if (target) await vscode.env.clipboard.writeText(target);
+        })
     );
 
     // -- Detail webview --
@@ -97,12 +106,18 @@ export function activate(context: vscode.ExtensionContext): void {
         }
         detail.show(buildImpressionLoading(mySeq, currentNodeId));
         try {
-            const [items, status, workflow] = await Promise.all([
+            const [resultItems, status, workflow] = await Promise.all([
                 yuki.fetchImpressionResults(meta.projectUuid, impression),
                 yuki.fetchImpressionStatus(meta.projectUuid, impression),
                 yuki.fetchImpressionWorkflow(meta.projectUuid, impression),
             ]);
             if (mySeq !== selectionSeq) return;
+            const runner = workflow.trim().split(/\s+/, 1)[0];
+            const logItems = runner
+                ? await yuki.fetchImpressionLogs(meta.projectUuid, impression, runner)
+                : [];
+            if (mySeq !== selectionSeq) return;
+            const items = [...resultItems, ...logItems];
             for (const item of items) {
                 if (/\.root$/i.test(item.name) || /\.root(?:[?#]|$)/i.test(item.url)) {
                     availableRemoteRoots.set(item.url, item.name);
@@ -204,7 +219,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
         timing('detail.selection', { node: node.id, selection: mySeq });
         if (node.type === 'file') {
-            // Algorithm source files open through the tree item's native editor command.
+            // Local files open through the tree item's native editor command.
             if (item.command?.command === 'vscode.open') return;
             const fileData = node.data as Record<string, unknown>;
             const absolutePath = String(fileData.absolutePath || path.join(projectRoot, node.id));

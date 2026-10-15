@@ -127,10 +127,7 @@ export class CelebiTreeProvider implements vscode.TreeDataProvider<CelebiTreeIte
         let item = this.itemCache.get(node.id);
         if (!item) {
             item = toItem(node);
-            const ancestors = node.id.split('/').slice(0, -1);
-            const insideAlgorithm = ancestors.some((_, index) =>
-                this.typeMap[ancestors.slice(0, index + 1).join('/')] === 'algorithm');
-            if (node.type === 'file' && insideAlgorithm) {
+            if (node.type === 'file') {
                 item.resourceUri = vscode.Uri.file(
                     String(node.data.absolutePath || path.join(this.projectRoot, node.id))
                 );

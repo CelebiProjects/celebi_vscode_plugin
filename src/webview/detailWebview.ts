@@ -29,8 +29,8 @@ export class DetailWebviewProvider implements vscode.Disposable {
     private panel: vscode.WebviewPanel | undefined;
     private selectedNodeId: string | undefined;
     private readonly disposables: vscode.Disposable[] = [];
-    private readonly pdfProxy = new RootRangeProxy();
-    private pdfSources: ProxiedRootSource[] = [];
+    private readonly previewProxy = new RootRangeProxy();
+    private previewSources: ProxiedRootSource[] = [];
     private resultVersion = 0;
 
     constructor(
@@ -100,28 +100,31 @@ export class DetailWebviewProvider implements vscode.Disposable {
                     this.callbacks.onOpenLocalRootFile(msg.path);
                 }
             }, undefined, this.disposables);
-            this.panel.onDidDispose(() => { this.panel = undefined; this.clearPdfSources(); }, undefined, this.disposables);
+            this.panel.onDidDispose(() => { this.panel = undefined; this.clearPreviewSources(); }, undefined, this.disposables);
         }
         this.panel.reveal(undefined, true);
-        if (payload.type === 'selectNode' || payload.type === 'impressionResults') this.clearPdfSources();
+        if (payload.type === 'selectNode' || payload.type === 'impressionResults') this.clearPreviewSources();
         void this.postPayload(this.panel, payload, this.resultVersion);
     }
 
-    private clearPdfSources(): void {
+    private clearPreviewSources(): void {
         this.resultVersion++;
-        for (const source of this.pdfSources) source.dispose();
-        this.pdfSources = [];
+        for (const source of this.previewSources) source.dispose();
+        this.previewSources = [];
     }
 
     private async postPayload(panel: vscode.WebviewPanel, payload: ExtensionToWebview, version: number): Promise<void> {
         if (payload.type === 'impressionResults' && payload.state === 'ready') {
             const items = await Promise.all(payload.items.map(async item => {
-                if (!item.is_pdf) return item;
+                const isText = /\.(?:txt|log|csv|md|json|ya?ml)(?:[?#]|$)/i.test(item.name)
+                    || /\.(?:txt|log|csv|md|json|ya?ml)(?:[?#]|$)/i.test(item.path)
+                    || /\.(?:txt|log|csv|md|json|ya?ml)(?:[?#]|$)/i.test(item.url);
+                if (!item.is_pdf && !isText) return item;
                 try {
-                    // Reuse the byte-range bridge so DITE does not need browser CORS support.
-                    const source = await this.pdfProxy.register(item.url, item.name, true);
+                    // Reuse the loopback bridge so previews do not depend on DITE CORS support.
+                    const source = await this.previewProxy.register(item.url, item.name, true);
                     if (version !== this.resultVersion) source.dispose();
-                    else this.pdfSources.push(source);
+                    else this.previewSources.push(source);
                     return { ...item, previewUrl: source.url };
                 } catch {
                     return item; // The preview shows an error and retains the original file link.
@@ -134,8 +137,8 @@ export class DetailWebviewProvider implements vscode.Disposable {
     }
 
     dispose(): void {
-        this.clearPdfSources();
-        this.pdfProxy.dispose();
+        this.clearPreviewSources();
+        this.previewProxy.dispose();
         this.panel?.dispose();
         for (const d of this.disposables) {
             d.dispose();

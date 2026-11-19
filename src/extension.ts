@@ -12,7 +12,7 @@ import { CelebiTreeProvider } from './tree/treeProvider';
 import { CelebiTreeItem } from './treeItem';
 import { affectsTree } from './tree/treeChanges';
 import { resolveTreeItemPath, resolveTreeItemRelativePath } from './tree/treePath';
-import { YukiClient } from './yuki/client';
+import { YukiClient, ImpressionFile } from './yuki/client';
 import { readProjectMeta, readFileForPreview } from './projectMeta';
 import { runCelebiPython, ObjectDetailData, disposeCelebiPythonWorkers } from './celebiScript';
 import { DetailWebviewProvider } from './webview/detailWebview';
@@ -22,9 +22,10 @@ import {
     buildSelectNodePayload, buildImpressionLoading, buildImpressionReady,
     buildImpressionError, NodeDetail,
 } from './webview/detailMessages';
+import { registerProjectSelector } from './projectSelection';
 
 export function activate(context: vscode.ExtensionContext): void {
-    const projectFolder = vscode.workspace.workspaceFolders?.[0];
+    const projectFolder = registerProjectSelector(context);
     const projectRoot = projectFolder?.uri.fsPath;
     if (!projectFolder || !projectRoot) {
         void vscode.window.showInformationMessage(
@@ -40,10 +41,16 @@ export function activate(context: vscode.ExtensionContext): void {
         pid: process.pid,
         vscode_version: vscode.version,
     });
-    const meta = readProjectMeta(projectRoot);
+    let meta = readProjectMeta(projectRoot);
     const config = vscode.workspace.getConfiguration('celebi');
     const baseUrl = meta.diteUrl || config.get<string>('diteServerUrl', 'http://127.0.0.1:3315');
     const yuki = new YukiClient(baseUrl);
+    // A project may be initialized after this extension host starts.
+    const refreshProjectMeta = (): void => {
+        meta = readProjectMeta(projectRoot);
+        yuki.updateBaseUrl(meta.diteUrl || vscode.workspace.getConfiguration('celebi')
+            .get<string>('diteServerUrl', 'http://127.0.0.1:3315'));
+    };
     const rootViewer = new RootViewer(context);
     const availableRemoteRoots = new Map<string, string>();
     context.subscriptions.push(rootViewer);
@@ -75,7 +82,7 @@ export function activate(context: vscode.ExtensionContext): void {
     context.subscriptions.push(
         treeView,
         vscode.commands.registerCommand('celebi.refreshTree', async () => {
-            await provider.refresh();
+            await refreshSelectedDetail();
             void updateDiteStatus();
         }),
         vscode.commands.registerCommand('celebi.refreshDite', () => void updateDiteStatus()),
@@ -95,40 +102,67 @@ export function activate(context: vscode.ExtensionContext): void {
     let selectionSeq = 0;
     let selectedNodeId = '';
     let selectedImpression = '';
+    let selectedIsRawData = false;
     const availableImpressions = new Set<string>();
     const collecting = new Set<string>();
+    const resultCache = new Map<string, ImpressionFile[]>();
 
-    const loadImpression = async (impression: string, mySeq: number, currentNodeId: string): Promise<void> => {
+    const loadImpression = async (
+        impression: string, mySeq: number, currentNodeId: string, isRawData = false
+    ): Promise<void> => {
         availableRemoteRoots.clear();
         if (!meta.projectUuid) {
             detail.show(buildImpressionError('Project UUID missing — cannot load results.', mySeq, currentNodeId));
             return;
         }
-        detail.show(buildImpressionLoading(mySeq, currentNodeId));
-        try {
-            const [resultItems, status, workflow] = await Promise.all([
-                yuki.fetchImpressionResults(meta.projectUuid, impression),
-                yuki.fetchImpressionStatus(meta.projectUuid, impression),
-                yuki.fetchImpressionWorkflow(meta.projectUuid, impression),
-            ]);
-            if (mySeq !== selectionSeq) return;
-            const runner = workflow.trim().split(/\s+/, 1)[0];
-            const logItems = runner
-                ? await yuki.fetchImpressionLogs(meta.projectUuid, impression, runner)
-                : [];
-            if (mySeq !== selectionSeq) return;
-            const items = [...resultItems, ...logItems];
+        const projectUuid = meta.projectUuid;
+        const key = projectUuid + '/' + impression;
+        let files = resultCache.get(key);
+        let logs: ImpressionFile[] = [];
+        const publish = () => {
+            if (mySeq !== selectionSeq || !files) return;
+            const items = [...files, ...logs];
             for (const item of items) {
                 if (/\.root$/i.test(item.name) || /\.root(?:[?#]|$)/i.test(item.url)) {
                     availableRemoteRoots.set(item.url, item.name);
                 }
             }
-            detail.show(buildImpressionReady(items, status.status, status.details, workflow, mySeq, currentNodeId));
-        } catch (err) {
+            detail.show(buildImpressionReady(items, '', '', '', mySeq, currentNodeId));
+        };
+        if (files) publish();
+        else detail.show(buildImpressionLoading(mySeq, currentNodeId));
+        const filesRequest = yuki.fetchImpressionResults(projectUuid, impression).then(items => {
+            files = items;
+            resultCache.set(key, items);
+            // Bound the cache for long-lived extension sessions.
+            if (resultCache.size > 100) resultCache.delete(resultCache.keys().next().value!);
+            publish();
+        }).catch(error => {
             if (mySeq !== selectionSeq) return;
-            const message = err instanceof Error ? err.message : String(err);
-            detail.show(buildImpressionError(message, mySeq, currentNodeId));
-        }
+            if (!files) detail.show(buildImpressionError(String(error), mySeq, currentNodeId));
+            else timing('results.refresh.error', { impression, message: String(error) });
+        });
+        const runRequest = isRawData ? Promise.resolve() : Promise.all([
+            yuki.fetchImpressionStatus(projectUuid, impression),
+            yuki.fetchImpressionWorkflow(projectUuid, impression),
+        ]).then(async ([status, workflow]) => {
+            if (mySeq !== selectionSeq) return;
+            detail.show({ type: 'workflowStatus', nodeId: currentNodeId, impression,
+                status: status.status, details: status.details, workflow });
+            const runner = workflow.trim().split(/\s+/, 1)[0];
+            if (!runner) return;
+            try {
+                logs = await yuki.fetchImpressionLogs(projectUuid, impression, runner);
+                if (logs.length) publish();
+            } catch (error) {
+                timing('results.logs.error', { impression, message: String(error) });
+            }
+        }).catch(error => {
+            if (mySeq !== selectionSeq) return;
+            detail.show({ type: 'workflowStatus', nodeId: currentNodeId, impression,
+                status: 'unknown', details: 'Could not refresh run status: ' + String(error), workflow: '' });
+        });
+        await Promise.all([filesRequest, runRequest]);
     };
 
     const readmeEditor = new ProjectFileEditor(projectRoot, 'README.md');
@@ -146,14 +180,21 @@ export function activate(context: vscode.ExtensionContext): void {
             return yamlEditor.open({ id: item.nodeId, kind: item.kind, name: item.node.name });
         },
         onSaveYaml: (nodeId, session, content) => yamlEditor.save(nodeId, session, content),
+        onRefreshStatus: async (nodeId) => {
+            const selected = treeView.selection[0];
+            if (selected?.node.id === nodeId) await showDetail(selected, true);
+        },
         onSelectImpression: async (impression) => {
             if (!availableImpressions.has(impression)) return;
             selectedImpression = impression;
-            await loadImpression(impression, ++selectionSeq, selectedNodeId);
+            await loadImpression(impression, ++selectionSeq, selectedNodeId, selectedIsRawData);
         },
         onCollectImpression: async (nodeId, impression) => {
             if (!meta.projectUuid || nodeId !== selectedNodeId || impression !== selectedImpression) {
                 throw new Error('Select the impression again before collecting its results.');
+            }
+            if (selectedIsRawData) {
+                throw new Error('Registered raw data is available remotely and does not need collection.');
             }
             if (collecting.has(impression)) throw new Error('This impression is already being collected.');
             const mySeq = selectionSeq;
@@ -206,12 +247,14 @@ export function activate(context: vscode.ExtensionContext): void {
         await showDetail(item);
     });
 
-    const showDetail = async (item: CelebiTreeItem): Promise<void> => {
+    const showDetail = async (item: CelebiTreeItem, forceStatus = false): Promise<void> => {
         const started = performance.now();
+        refreshProjectMeta();
         const mySeq = ++selectionSeq;
         const node = item.node;
         selectedNodeId = node.id;
         selectedImpression = '';
+        selectedIsRawData = false;
         availableImpressions.clear();
 
         // Status/error rows are not explorable objects — skip the detail panel.
@@ -247,7 +290,7 @@ export function activate(context: vscode.ExtensionContext): void {
         // Show the selected node immediately, then fill in its API detail.
         detail.show(buildSelectNodePayload(nodeDetail, null, null, provider.getTypeMap(), meta.projectUuid));
         const requests: [Promise<unknown>, Promise<string | null>] = [
-            runCelebiPython('detail', projectRoot, fsPath),
+            runCelebiPython('metadata', projectRoot, fsPath),
             node.type === 'object' ? yamlEditor.read(nodeDetail) : Promise.resolve(null),
         ];
         const [apiDetail, yaml] = await Promise.allSettled(requests);
@@ -260,8 +303,60 @@ export function activate(context: vscode.ExtensionContext): void {
             void vscode.window.showErrorMessage(`Celebi: could not load details: ${String(apiDetail.reason)}`);
             return;
         }
-        const result = apiDetail.value as ObjectDetailData;
+        let result = apiDetail.value as ObjectDetailData;
+        nodeDetail.data = { ...nodeDetail.data, ...result.data };
+        if (node.celebiType === 'task') {
+            const history = Array.isArray(result.config.impressions) ? result.config.impressions : [];
+            const last = history[history.length - 1];
+            const previous = String(result.config.impression || (typeof last === 'string' ? last : last?.uuid) || '');
+            selectedIsRawData = String(result.data.environment || '').toLowerCase() === 'rawdata';
+            for (const entry of history) {
+                const uuid = typeof entry === 'string' ? entry : entry?.uuid;
+                if (typeof uuid === 'string') availableImpressions.add(uuid);
+            }
+            if (previous) {
+                selectedImpression = previous;
+                availableImpressions.add(previous);
+            }
+            // Keep the selector stable until the current-state check completes.
+            nodeDetail.data.statusLoading = true;
+            detail.show(buildSelectNodePayload(
+                nodeDetail, { ...result.config, impression: previous, impressions: history.length ? history : previous ? [previous] : [] }, result.readme,
+                { ...provider.getTypeMap(), ...result.typeMap }, meta.projectUuid
+            ));
+            timing('detail.metadata.sent', { node: node.id, selection: mySeq, total_ms: elapsed(started) });
+            const previousResults = previous ? loadImpression(previous, mySeq, node.id, selectedIsRawData) : Promise.resolve();
+            try {
+                result = await runCelebiPython('detail', projectRoot, fsPath, forceStatus) as ObjectDetailData;
+            } catch (error) {
+                if (mySeq !== selectionSeq) {
+                    if (selectedNodeId === node.id) detail.show({ type: 'taskStatus', nodeId: node.id, status: '', error: String(error) });
+                    return;
+                }
+                nodeDetail.data.statusLoading = false;
+                nodeDetail.data.statusError = String(error);
+                detail.show({ type: 'taskStatus', nodeId: node.id, status: '', error: String(error) });
+                await previousResults;
+                return;
+            }
+            if (mySeq !== selectionSeq) {
+                if (selectedNodeId === node.id) detail.show({ type: 'taskStatus', nodeId: node.id, status: String(result.data.local_status || ''), error: '' });
+                return;
+            }
+            nodeDetail.data.statusLoading = false;
+            if (previous && (!result.config.impression || result.config.impression === previous)) {
+                detail.show({ type: 'taskStatus', nodeId: node.id,
+                    status: String(result.data.local_status || ''), error: '' });
+                await previousResults;
+                return;
+            }
+            // Drain the provisional request before replacing it with a different impression.
+            await previousResults;
+            if (mySeq !== selectionSeq) return;
+        }
         const mergedConfig = result.config;
+        selectedIsRawData = node.celebiType === 'task'
+            && String(result.data?.environment || mergedConfig.environment || '').toLowerCase() === 'rawdata';
         if (node.celebiType === 'task') {
             if (typeof mergedConfig.impression === 'string') availableImpressions.add(mergedConfig.impression);
             if (Array.isArray(mergedConfig.impressions)) {
@@ -280,15 +375,22 @@ export function activate(context: vscode.ExtensionContext): void {
 
         // Auto-fetch results for the default impression when a task is selected
         const impression = mergedConfig.impression as string | undefined;
-        if (node.celebiType === 'task' && impression && meta.projectUuid) {
+        if (node.celebiType === 'task' && impression) {
             selectedImpression = impression;
             const resultsStarted = performance.now();
-            await loadImpression(impression, mySeq, node.id);
+            await loadImpression(impression, mySeq, node.id, selectedIsRawData);
             timing('detail.results.done', { node: node.id, results_ms: elapsed(resultsStarted) });
         }
     }
 
-    // -- File watcher: refresh the tree on project changes (debounced) --
+    const refreshSelectedDetail = async (): Promise<void> => {
+        const selected = treeView.selection[0];
+        const seq = selectionSeq;
+        await provider.refresh();
+        if (selected && seq === selectionSeq) await showDetail(selected);
+    };
+
+    // -- File watcher: refresh the tree and selected detail on project changes. --
     const watcher = vscode.workspace.createFileSystemWatcher(
         new vscode.RelativePattern(projectRoot, '**/*')
     );
@@ -298,7 +400,9 @@ export function activate(context: vscode.ExtensionContext): void {
         if (!affectsTree(relativePath, change)) return;
         timing('tree.watch.schedule', { path: relativePath, change, debounce_ms: 800 });
         if (debounceTimer) clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(() => void provider.refresh(), 800);
+        debounceTimer = setTimeout(() => void refreshSelectedDetail().catch(error => {
+            timing('detail.refresh.error', { message: String(error) });
+        }), 800);
     };
     watcher.onDidChange(uri => scheduleRefresh(uri, 'change'));
     watcher.onDidCreate(uri => scheduleRefresh(uri, 'structure'));

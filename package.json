@@ -2,7 +2,7 @@
   "name": "celebi",
   "displayName": "Celebi",
   "publisher": "celebi",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "icon": "media/icon.png",
   "engines": {
     "vscode": "^1.85.0"
@@ -82,6 +82,11 @@
       ]
     },
     "commands": [
+      {
+        "command": "celebi.selectProject",
+        "title": "Celebi: Select Project",
+        "icon": "$(folder)"
+      },
       {
         "command": "celebi.refreshTree",
         "title": "Refresh Celebi Tree",

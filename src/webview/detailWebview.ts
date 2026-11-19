@@ -12,6 +12,7 @@ import { ExtensionToWebview, parseWebviewMessage } from './detailMessages';
 import { RootRangeProxy, ProxiedRootSource } from '../rootViewer/rangeProxy';
 
 export interface DetailWebviewCallbacks {
+    onRefreshStatus?(nodeId: string): Promise<void>;
     onEditReadme(nodeId: string): Promise<{ session: string; content: string }>;
     onSaveReadme(nodeId: string, session: string, content: string): Promise<string>;
     onEditYaml(nodeId: string): Promise<{ session: string; content: string }>;
@@ -61,6 +62,11 @@ export class DetailWebviewProvider implements vscode.Disposable {
             this.panel.webview.onDidReceiveMessage(async (raw: unknown) => {
                 const msg = parseWebviewMessage(raw);
                 if (!msg) return;
+                if (msg.type === 'refreshStatus' && msg.nodeId === this.selectedNodeId) {
+                    try { await this.callbacks.onRefreshStatus?.(msg.nodeId); }
+                    catch (error) { void vscode.window.showErrorMessage(`Celebi: ${String(error)}`); }
+                    finally { void panel.webview.postMessage({ type: 'statusRefreshDone', nodeId: msg.nodeId }); }
+                }
                 if (msg.type === 'collectImpression') {
                     let error = '';
                     try {
@@ -115,18 +121,24 @@ export class DetailWebviewProvider implements vscode.Disposable {
 
     private async postPayload(panel: vscode.WebviewPanel, payload: ExtensionToWebview, version: number): Promise<void> {
         if (payload.type === 'impressionResults' && payload.state === 'ready') {
+            // File links must not wait for preview port forwarding.
+            void panel.webview.postMessage(payload);
             const items = await Promise.all(payload.items.map(async item => {
                 const isText = /\.(?:txt|log|csv|md|json|ya?ml)(?:[?#]|$)/i.test(item.name)
                     || /\.(?:txt|log|csv|md|json|ya?ml)(?:[?#]|$)/i.test(item.path)
                     || /\.(?:txt|log|csv|md|json|ya?ml)(?:[?#]|$)/i.test(item.url);
-                if (!item.is_pdf && !isText) return item;
+                if (!item.is_plot && !item.is_image && !item.is_pdf && !isText) return item;
+                let source: ProxiedRootSource | undefined;
                 try {
-                    // Reuse the loopback bridge so previews do not depend on DITE CORS support.
-                    const source = await this.previewProxy.register(item.url, item.name, true);
+                    // Fetch from the extension host, then forward its loopback proxy
+                    // so Remote SSH webviews can reach it from the user's machine.
+                    source = await this.previewProxy.register(item.url, item.name, true);
+                    const externalUri = await vscode.env.asExternalUri(vscode.Uri.parse(source.url));
                     if (version !== this.resultVersion) source.dispose();
                     else this.previewSources.push(source);
-                    return { ...item, previewUrl: source.url };
+                    return { ...item, previewUrl: externalUri.toString() };
                 } catch {
+                    source?.dispose();
                     return item; // The preview shows an error and retains the original file link.
                 }
             }));

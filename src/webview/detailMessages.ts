@@ -44,9 +44,12 @@ export interface ReadmeEditResult {
     error?: string;
 }
 
-export type ExtensionToWebview = SelectNodePayload | ImpressionResultsPayload | ReadmeEditResult;
+export type ExtensionToWebview = SelectNodePayload | ImpressionResultsPayload | ReadmeEditResult
+    | { type: 'workflowStatus'; nodeId: string; impression: string; status: string; details: string; workflow: string }
+    | { type: 'taskStatus'; nodeId: string; status: string; error: string };
 
 export type WebviewToExtension =
+    | { type: 'refreshStatus'; nodeId: string }
     | { type: 'collectImpression'; nodeId: string; impression: string }
     | { type: 'selectImpression'; impression: string }
     | { type: 'navigateToPath'; path: string }
@@ -101,6 +104,9 @@ export function buildImpressionError(message: string, selection?: number, nodeId
 export function parseWebviewMessage(raw: unknown): WebviewToExtension | null {
     if (!raw || typeof raw !== 'object') return null;
     const msg = raw as Record<string, unknown>;
+    if (msg.type === 'refreshStatus' && typeof msg.nodeId === 'string') {
+        return { type: 'refreshStatus', nodeId: msg.nodeId };
+    }
     if (msg.type === 'collectImpression' && typeof msg.nodeId === 'string'
         && typeof msg.impression === 'string' && msg.impression.trim()) {
         return { type: msg.type, nodeId: msg.nodeId, impression: msg.impression };

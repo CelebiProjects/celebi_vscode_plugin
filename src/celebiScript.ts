@@ -10,6 +10,29 @@ const workers = new Map<string, PythonWorker>();
 import * as fs from 'fs';
 import * as path from 'path';
 
+// Keep historical snapshots selectable without treating them as the current task.
+const LOCAL_TASK_STATE = `
+    if kind == "task" and not metadata_only:
+        if force_status:
+            local_status_cache.clear()
+            from CelebiChrono.kernel.chern_cache import ChernCache
+            cache = ChernCache.instance()
+            cache.impression_consult_table.clear()
+            cache.status_consult_table.clear()
+            cache.predecessor_consult_table.clear()
+            cache.project_modification_time = (None, -1)
+        if node_path not in local_status_cache:
+            local_status_cache[node_path] = obj.status()
+        data["local_status"] = local_status_cache[node_path]
+        if data["local_status"] == "new":
+            previous = config.get("impression")
+            history = list(config.get("impressions") or [])
+            if previous and not any((entry.get("uuid") if isinstance(entry, dict) else entry) == previous for entry in history):
+                history.append(previous)
+            config["impressions"] = history
+            config["impression"] = ""
+`;
+
 /** A thin, one-directory adapter over Celebi's public object API. */
 export const PYTHON_SCRIPT = `
 import json
@@ -18,6 +41,8 @@ import sys
 import time
 from datetime import datetime, timezone
 
+local_status_cache = {}
+force_status = False
 _started = _last = time.perf_counter()
 _trace = sys.argv[4] if len(sys.argv) > 4 else "terminal"
 def mark(event, **fields):
@@ -37,6 +62,7 @@ mark("python.import.done")
 
 project_path = os.path.abspath(sys.argv[1])
 mode = sys.argv[2]
+metadata_only = mode == "metadata"
 node_path = os.path.abspath(sys.argv[3] or project_path)
 if os.path.commonpath([project_path, node_path]) != project_path:
     raise ValueError("Node is outside the project")
@@ -87,7 +113,7 @@ if mode == "children":
     mark("python.files.done", entries=len(entries))
     print(json.dumps({"entries": entries}))
     mark("python.serialize.done")
-elif mode == "detail":
+elif mode in ("detail", "metadata"):
     from CelebiChrono.utils.metadata import YamlFile
     kind = obj.object_type()
     if kind == "task":
@@ -117,6 +143,7 @@ elif mode == "detail":
     config = {key: obj.config_file.read_variable(key, default) for key, default in (
         ("predecessors", []), ("successors", []), ("impressions", []), ("impression", "")
     )}
+${LOCAL_TASK_STATE}
     try:
         readme = obj.readme()
     except OSError:
@@ -149,6 +176,7 @@ from CelebiChrono.kernel.vproject import VProject
 project_path = os.path.abspath(sys.argv[1])
 project = VProject(project_path)
 objects = {project_path: project}
+local_status_cache = {}
 def get_object(node_path):
     if node_path not in objects:
         objects[node_path] = VObject(node_path, project_path)
@@ -170,7 +198,7 @@ def children(node_path):
             except OSError: continue
             out.append({"path": os.path.relpath(e.path, project_path).replace(os.sep, "/"), "name": e.name, "kind": "object" if kind else "directory" if is_dir else "file", "type": kind or None, "absolutePath": e.path, "size": {"raw": st.st_size}, "lastModified": str(st.st_mtime)})
     return {"entries": out}
-def detail(node_path):
+def detail(node_path, force_status=False, metadata_only=False):
     from CelebiChrono.utils.metadata import YamlFile
     obj = get_object(node_path); kind = obj.object_type()
     if kind == "task":
@@ -188,6 +216,7 @@ def detail(node_path):
     if kind == "task":
         data.update({"parameters": obj.parameters()[1], "memory_limit": obj.memory_limit(), "default_runner": obj.default_runner(), "aliases": list(obj.get_alias_list())})
     config = {k: obj.config_file.read_variable(k, d) for k, d in (("predecessors", []), ("successors", []), ("impressions", []), ("impression", ""))}
+${LOCAL_TASK_STATE}
     type_map = {}
     for relative in (config.get("predecessors") or []) + (config.get("successors") or []):
         if not isinstance(relative, str):
@@ -210,7 +239,7 @@ for line in sys.stdin:
     started = time.perf_counter()
     try:
         req = json.loads(line); node = os.path.abspath(req.get("node") or project_path)
-        result = children(node) if req["mode"] == "children" else detail(node) if req["mode"] == "detail" else {"readme": get_object(node).readme()}
+        result = children(node) if req["mode"] == "children" else detail(node, req.get("forceStatus", False), req["mode"] == "metadata") if req["mode"] in ("detail", "metadata") else {"readme": get_object(node).readme()}
         print(json.dumps({"id": req["id"], "result": result, "python_ms": round((time.perf_counter() - started) * 1000, 1)}), flush=True)
     except Exception as exc:
         print(json.dumps({"id": req.get("id"), "error": str(exc)}), flush=True)
@@ -235,8 +264,8 @@ class PythonWorker {
         this.child.on('error', error => this.fail(error));
         this.child.on('exit', code => this.fail(new Error(`Celebi worker exited (${code})`)));
     }
-    request(mode: string, node: string, id: number): Promise<unknown> {
-        return new Promise((resolve, reject) => { this.pending.set(id, { resolve, reject }); this.child.stdin.write(JSON.stringify({ id, mode, node }) + '\n'); });
+    request(mode: string, node: string, id: number, forceStatus = false): Promise<unknown> {
+        return new Promise((resolve, reject) => { this.pending.set(id, { resolve, reject }); this.child.stdin.write(JSON.stringify({ id, mode, node, forceStatus }) + '\n'); });
     }
     private fail(error: Error): void { for (const item of this.pending.values()) item.reject(error); this.pending.clear(); }
     dispose(): void { this.child.kill(); this.fail(new Error('Celebi worker stopped')); }
@@ -311,9 +340,10 @@ export function resolvePythonEnv(
  * Send an API request to the persistent project worker.
  */
 export async function runCelebiPython(
-    mode: 'children' | 'detail' | 'readme',
+    mode: 'children' | 'detail' | 'metadata' | 'readme',
     projectPath: string,
-    nodePath = ''
+    nodePath = '',
+    forceStatus = false
 ): Promise<ChildrenData | ObjectDetailData | { readme: string | null }> {
     const started = performance.now();
     const request = ++requestSequence;
@@ -345,7 +375,9 @@ export async function runCelebiPython(
         pyEnv.PYTHONPATH = [env.packagePath, process.env.PYTHONPATH].filter(Boolean).join(path.delimiter);
     }
 
-    const workerKey = `${env.pythonPath}\0${projectPath}\0${env.packagePath}`;
+    // Directory browsing must not queue behind slow dependency/status checks.
+    const lane = mode === 'detail' ? 'detail' : 'metadata';
+    const workerKey = `${env.pythonPath}\0${projectPath}\0${env.packagePath}\0${lane}`;
     let worker = workers.get(workerKey);
     if (!worker) {
         timing('python.worker.start', { request, python: env.pythonPath, project: projectPath });
@@ -355,7 +387,7 @@ export async function runCelebiPython(
         timing('python.worker.reuse', { request, python: env.pythonPath, project: projectPath });
     }
     timing('python.request.start', { request, mode, node: nodePath || projectPath, python: env.pythonPath, setup_ms: elapsed(started) });
-    return worker.request(mode, nodePath || projectPath, request).then(data => {
+    return worker.request(mode, nodePath || projectPath, request, forceStatus).then(data => {
         timing('python.worker.response', { request, mode, total_ms: elapsed(started) });
         return data as ChildrenData | ObjectDetailData | { readme: string | null };
     });

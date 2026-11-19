@@ -24,6 +24,7 @@ class Object:
     def readme(self):
         return "API README"
 class Task(Object):
+    def status(self): return "impressed"
     def get_descriptor(self): return "API descriptor"
     def environment(self): return "python"
     def commands(self): return ["task-level API command"]
@@ -34,10 +35,17 @@ class Task(Object):
 class Yaml:
     def __init__(self, path): pass
     def read_variable(self, key, default): return default
+cache = types.SimpleNamespace(
+    impression_consult_table={}, status_consult_table={}, predecessor_consult_table={},
+    project_modification_time=(None, -1))
+class ChernCache:
+    @classmethod
+    def instance(cls): return cache
 for name, attrs in {
     "CelebiChrono": {}, "CelebiChrono.kernel": {}, "CelebiChrono.utils": {},
     "CelebiChrono.kernel.vobject": {"VObject": Object},
     "CelebiChrono.kernel.vtask": {"VTask": Task},
+    "CelebiChrono.kernel.chern_cache": {"ChernCache": ChernCache},
     "CelebiChrono.utils.metadata": {"YamlFile": Yaml},
 }.items():
     module = types.ModuleType(name)
@@ -99,5 +107,99 @@ sys.modules[module.__name__] = module
         expect(result.error).toBeUndefined();
         expect(result.python_ms).toEqual(expect.any(Number));
         expect(result.result.entries).toEqual(expect.any(Array));
+    }
+});
+
+test.each(['new', 'impressed'])('both adapters honor local task status %s despite a retained snapshot', status => {
+    const stub = apiDouble + `
+Task.status = lambda self: ${JSON.stringify(status)}
+module = types.ModuleType("CelebiChrono.kernel.vproject")
+module.VProject = lambda path: Object(path, path)
+sys.modules[module.__name__] = module
+`;
+    const node = path.join(root, 'task');
+    const single = JSON.parse(execFileSync('python3', ['-B', '-c', stub + PYTHON_SCRIPT, root, 'detail', node], { encoding: 'utf8' }));
+    const daemon = JSON.parse(execFileSync('python3', ['-B', '-c', stub + PYTHON_DAEMON_SCRIPT, root], {
+        input: JSON.stringify({ id: 1, mode: 'detail', node }) + '\n', encoding: 'utf8',
+    })).result;
+    for (const result of [single, daemon]) {
+        expect(result.data.local_status).toBe(status);
+        expect(result.config.impression).toBe(status === 'new' ? '' : 'latest');
+        if (status === 'new') expect(result.config.impressions).toContain('latest');
+    }
+});
+
+test('daemon caches status until an explicit refresh after external impress', () => {
+    const stub = apiDouble + `
+cache = sys.modules["CelebiChrono.kernel.chern_cache"].ChernCache.instance()
+calls = 0
+def changing_status(self):
+    global calls
+    if self.path in cache.impression_consult_table:
+        return cache.impression_consult_table[self.path]
+    calls += 1
+    result = "new" if calls == 1 else "impressed"
+    cache.impression_consult_table[self.path] = result
+    return result
+Task.status = changing_status
+module = types.ModuleType("CelebiChrono.kernel.vproject")
+module.VProject = lambda path: Object(path, path)
+sys.modules[module.__name__] = module
+`;
+    const input = [1, 2, 3].map(id => JSON.stringify({ id, mode: 'detail', forceStatus: id === 3, node: path.join(root, 'task') })).join('\n') + '\n';
+    const results = execFileSync('python3', ['-B', '-c', stub + PYTHON_DAEMON_SCRIPT, root], {
+        input, encoding: 'utf8',
+    }).trim().split('\n').map(line => JSON.parse(line));
+    expect(results[0].result.data.local_status).toBe('new');
+    expect(results[0].result.config.impression).toBe('');
+    expect(results[1].result.data.local_status).toBe('new');
+    expect(results[1].result.config.impression).toBe('');
+    expect(results[2].result.data.local_status).toBe('impressed');
+    expect(results[2].result.config.impression).toBe('latest');
+});
+
+
+test('switching tasks retains each status cache until explicit refresh', () => {
+    const second = path.join(root, 'plain', 'task');
+    fs.mkdirSync(second);
+    const stub = apiDouble + `
+calls = {}
+def once_per_task(self):
+    calls[self.path] = calls.get(self.path, 0) + 1
+    if calls[self.path] > 1: raise AssertionError("Repeated status calculation")
+    return "impressed"
+Task.status = once_per_task
+module = types.ModuleType("CelebiChrono.kernel.vproject")
+module.VProject = lambda path: Object(path, path)
+sys.modules[module.__name__] = module
+`;
+    const input = [path.join(root, 'task'), second, path.join(root, 'task')]
+        .map((node, id) => JSON.stringify({ id, mode: 'detail', node })).join('\n') + '\n';
+    const results = execFileSync('python3', ['-B', '-c', stub + PYTHON_DAEMON_SCRIPT, root], {
+        input, encoding: 'utf8',
+    }).trim().split('\n').map(line => JSON.parse(line));
+    for (const result of results) {
+        expect(result.error).toBeUndefined();
+        expect(result.result.data.local_status).toBe('impressed');
+    }
+});
+
+test('metadata returns before any status check, including on first load', () => {
+    const stub = apiDouble + `
+def forbidden(self): raise AssertionError("Metadata must not check status")
+Task.status = forbidden
+module = types.ModuleType("CelebiChrono.kernel.vproject")
+module.VProject = lambda path: Object(path, path)
+sys.modules[module.__name__] = module
+`;
+    const node = path.join(root, 'task');
+    const single = JSON.parse(execFileSync('python3', ['-B', '-c', stub + PYTHON_SCRIPT, root, 'metadata', node], { encoding: 'utf8' }));
+    const daemon = JSON.parse(execFileSync('python3', ['-B', '-c', stub + PYTHON_DAEMON_SCRIPT, root], {
+        input: JSON.stringify({ id: 1, mode: 'metadata', node }) + '\n', encoding: 'utf8',
+    })).result;
+    for (const result of [single, daemon]) {
+        expect(result.readme).toBe('API README');
+        expect(result.config.predecessors).toEqual([]);
+        expect(result.data.local_status).toBeUndefined();
     }
 });

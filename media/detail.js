@@ -4,16 +4,20 @@
     const TYPE_COLORS = { task: '#f97316', algorithm: '#3b82f6', data: '#22c55e', directory: '#eab308' };
 
     let current = null;
+    let latestResults = null;
     let currentSelection = 0;
     const collections = new Map();
     const collectionKey = (nodeId, impression) => JSON.stringify([nodeId, impression]);
 
     function renderCollect() {
         const impression = current?.config?.impression || '';
+        const isRawData = String(current?.node?.data?.environment || current?.config?.environment || '').toLowerCase() === 'rawdata';
         const state = collections.get(collectionKey(current?.node.id, impression));
+        $('collectResults').hidden = isRawData;
+        if (isRawData) $('collectStatus').textContent = '';
         $('collectResults').disabled = !impression || !current?.projectUuid || !!state?.pending;
         $('collectResults').textContent = state?.pending ? 'Collecting…' : 'Collect';
-        $('collectStatus').textContent = state?.message || '';
+        if (!isRawData) $('collectStatus').textContent = state?.message || '';
     }
     // Keep drafts when changing selection or receiving the second detail payload.
     const editableFiles = [
@@ -51,7 +55,7 @@
     }
 
     function hideAllSections() {
-        for (const id of ['impressionIdSection', 'readmeSection', 'statusSection',
+        for (const id of ['jobStatusSection', 'impressionIdSection', 'readmeSection', 'statusSection',
             'predecessorsSection', 'successorsSection', 'yamlSection',
             'contentsSection', 'resultsSection', 'fileInfoSection', 'previewSection']) {
             $(id).hidden = true;
@@ -67,6 +71,8 @@
     function renderNode(msg) {
         window.clearPdfPreviews();
         current = msg;
+        $('statusRefreshing').hidden = !msg.node.data?.statusLoading;
+        latestResults = null;
         currentSelection += 1;
         renderCollect();
         hideAllSections();
@@ -84,6 +90,13 @@
             typeLabel.textContent = 'File';
             typeLabel.style.background = '#888';
         }
+
+        $('jobStatusSection').hidden = msg.node.celebiType !== 'task' && !msg.config?.impression;
+        $('statusBadge').textContent = '';
+        $('statusBadge').className = 'statusBadge';
+        $('runnerBadge').hidden = true;
+        $('workflowId').textContent = '';
+        $('statusDetails').textContent = '';
 
         // Impression selector (reversed, like celebi_ui)
         const impressions = Array.isArray(msg.config?.impressions) ? [...msg.config.impressions].reverse() : [];
@@ -108,7 +121,12 @@
         if (selectedImpression) {
             $('impressionIdSection').hidden = false;
             $('impressionId').textContent = selectedImpression;
+            if (msg.node.celebiType === 'task') {
+                $('statusSection').hidden = false;
+                $('statusBadge').textContent = 'Loading…';
+            }
         }
+        showCurrentTaskState();
 
         // Render the actual project files and preserve any in-progress drafts.
         let isEditableFile = false;
@@ -153,7 +171,8 @@
 
         // Results area (populated by renderResults)
         if (msg.node.celebiType === 'task') {
-            $('resultsSection').hidden = false;
+            $('resultsSection').hidden = !selectedImpression && (!!msg.node.data?.statusLoading || !!msg.node.data?.statusError
+                || msg.node.data?.local_status === 'new');
             $('resultsStatus').textContent = '';
             $('resultGrid').innerHTML = '';
         }
@@ -189,9 +208,62 @@
             .some(value => /\.(?:txt|log|csv|md|json|ya?ml)(?:[?#]|$)/i.test(value || ''));
     }
 
+    function showCurrentTaskState() {
+        $('statusRefreshing').hidden = !current?.node.data?.statusLoading;
+        const impression = current?.config?.impression || '';
+        const isNew = current?.node.data?.local_status === 'new';
+        $('impressionIdSection').hidden = !impression && !isNew && !current?.node.data?.statusLoading && !current?.node.data?.statusError;
+        $('impressionId').textContent = isNew ? 'new' : impression || (current?.node.data?.statusLoading ? 'Checking…' : 'Unknown');
+        $('impressionId').className = isNew ? 'statusBadge statusNew' : 'impressionId';
+        $('impressionNote').textContent = current?.node.data?.statusError
+            ? 'Current impression check failed: ' + current.node.data.statusError
+            : isNew && impression ? 'Run Status and Results below belong to saved impression ' + impression
+            : isNew ? 'Current task has not been impressed.' : '';
+    }
+
+    function matchesResult(name, pattern) {
+        if (!pattern) return true;
+        const escaped = Array.from(pattern, ch => {
+            if (ch === '*') return '.*';
+            if (ch === '?') return '.';
+            return '^$\\.[]{}()+|'.includes(ch) ? '\\' + ch : ch;
+        }).join('');
+        const regex = new RegExp('^' + escaped + '$', 'i');
+        return regex.test(name) || regex.test(name.split('/').pop());
+    }
+
+    $('resultsFilter').addEventListener('input', () => {
+        if (latestResults) renderResults(latestResults);
+    });
+
+    function renderWorkflowStatus(msg) {
+        // Job status
+        $('statusSection').hidden = false;
+        if (msg.status) {
+            const badge = $('statusBadge');
+            badge.textContent = msg.status;
+            badge.className = 'statusBadge ' + (
+                ['finished', 'success', 'archived'].includes(msg.status) ? 'statusDone'
+                : msg.status === 'new' ? 'statusNew'
+                : ['failed', 'error'].includes(msg.status) ? 'statusFailed'
+                : 'statusPending'
+            );
+            $('statusDetails').textContent = msg.details || '';
+        }
+
+        if (msg.workflow !== undefined) {
+            const parts = (msg.workflow || '').trim().split(/\s+/).filter(Boolean);
+            $('runnerBadge').hidden = !parts[0];
+            if (parts[0]) $('runnerBadge').textContent = parts[0];
+            $('workflowId').textContent = parts.slice(1).join(' ');
+        }
+        showCurrentTaskState();
+    }
+
     function renderResults(msg) {
         if (!current || current.node.celebiType !== 'task') return;
         if (msg.nodeId !== undefined && msg.nodeId !== current.node.id) return;
+        latestResults = msg.state === 'ready' ? msg : null;
         window.clearPdfPreviews();
         $('resultsSection').hidden = false;
         if (msg.state === 'loading') {
@@ -205,30 +277,17 @@
             return;
         }
 
-        // Job status
-        $('statusSection').hidden = !msg.status;
-        if (msg.status) {
-            const badge = $('statusBadge');
-            badge.textContent = msg.status;
-            badge.className = 'statusBadge ' + (
-                ['finished', 'success', 'archived'].includes(msg.status) ? 'statusDone'
-                : ['failed', 'error'].includes(msg.status) ? 'statusFailed'
-                : 'statusPending'
-            );
-            const parts = (msg.workflow || '').trim().split(/\s+/).filter(Boolean);
-            $('runnerBadge').hidden = !parts[0];
-            if (parts[0]) $('runnerBadge').textContent = parts[0];
-            $('workflowId').textContent = parts.slice(1).join(' ');
-            $('statusDetails').textContent = msg.details || '';
-        }
-
-        const items = msg.items || [];
+        if (msg.status || msg.workflow) renderWorkflowStatus(msg);
+        showCurrentTaskState();
+        const allItems = msg.items || [];
+        const pattern = $('resultsFilter').value.trim();
+        const items = allItems.filter(item => matchesResult(String(item.name || ''), pattern));
         if (items.length === 0) {
-            $('resultsStatus').textContent = 'No results for this impression.';
+            $('resultsStatus').textContent = allItems.length ? 'No results match this filter.' : 'No results for this impression.';
             $('resultGrid').innerHTML = '';
             return;
         }
-        $('resultsStatus').textContent = '';
+        $('resultsStatus').textContent = pattern ? items.length + ' / ' + allItems.length + ' results' : '';
         $('resultGrid').innerHTML = items.map((item) => {
             if (item.is_pdf) {
                 return '<div class="resultItem pdfPlot" data-preview-url="' + esc(item.previewUrl || item.url) + '">' +
@@ -238,8 +297,11 @@
                     '</div>';
             }
             if (item.is_plot) {
+                const imageUrl = item.previewUrl || item.url;
                 return '<div class="resultItem">' +
-                    '<img class="resultImage" alt="' + esc(item.name) + '" src="' + esc(item.url) + '" data-url="' + esc(item.url) + '" data-name="' + esc(item.name) + '" loading="lazy">' +
+                    '<img class="resultImage" alt="' + esc(item.name) + '" src="' + esc(imageUrl) + '" data-url="' + esc(imageUrl) + '" data-name="' + esc(item.name) + '" loading="lazy">' +
+                    '<div class="imageStatus unsupported" role="status" hidden>Image preview failed. Check the Yuki connection and collect this result if needed.</div>' +
+                    '<a class="resultFileLink" href="' + esc(item.url) + '" target="_blank" rel="noopener noreferrer">' + esc(item.name) + '</a>' +
                     '</div>';
             }
             if (/\.root$/i.test(item.name) || /\.root(?:[?#]|$)/i.test(item.url)) {
@@ -279,7 +341,11 @@
         try {
             const response = await fetch(card.dataset.previewUrl);
             if (!response.ok) throw new Error('HTTP ' + response.status);
-            card.querySelector('.textResultPreview code').textContent = await response.text();
+            const text = await response.text();
+            if (text.trim() === 'NOTFOUND') {
+                throw new Error('Yuki could not read this file (NOTFOUND). Check its runner location and collection status.');
+            }
+            card.querySelector('.textResultPreview code').textContent = text;
             card.dataset.loaded = 'true';
             preview.hidden = false;
             status.hidden = true;
@@ -296,12 +362,30 @@
     $('impressionSelect').addEventListener('change', (e) => {
         if (e.target.value) {
             current.config.impression = e.target.value;
-            $('impressionId').textContent = e.target.value;
+            showCurrentTaskState();
+            $('statusSection').hidden = false;
+            $('statusBadge').textContent = 'Loading…';
+            $('statusBadge').className = 'statusBadge';
+            $('runnerBadge').hidden = true;
+            $('workflowId').textContent = '';
+            $('statusDetails').textContent = '';
             renderCollect();
             vscode.postMessage({ type: 'selectImpression', impression: e.target.value });
         }
     });
 
+    $('refreshStatus').addEventListener('click', () => {
+        if (!current || $('refreshStatus').disabled) return;
+        $('refreshStatus').disabled = true;
+        $('refreshStatus').textContent = 'Refreshing…';
+        vscode.postMessage({ type: 'refreshStatus', nodeId: current.node.id });
+    });
+    window.addEventListener('message', event => {
+        if (event.data.type === 'statusRefreshDone') {
+            $('refreshStatus').disabled = false;
+            $('refreshStatus').textContent = 'Refresh';
+        }
+    });
     $('collectResults').addEventListener('click', () => {
         if ($('collectResults').disabled) return;
         const nodeId = current.node.id;
@@ -350,11 +434,13 @@
         $('lightboxImg').src = '';
     });
 
-    // Hide broken plot images. Capture phase: the error event does not bubble,
+    // Explain broken plot images. Capture phase: the error event does not bubble,
     // and inline onerror handlers are blocked by the CSP nonce policy.
     document.addEventListener('error', (e) => {
         if (e.target.classList.contains('resultImage')) {
             e.target.style.display = 'none';
+            const status = e.target.closest('.resultItem')?.querySelector('.imageStatus');
+            if (status) status.hidden = false;
         }
     }, true);
 
@@ -418,6 +504,18 @@
         }
         if (msg.type === 'selectNode') renderNode(msg);
         if (msg.type === 'impressionResults') renderResults(msg);
+        if (msg.type === 'workflowStatus' && current?.node.id === msg.nodeId
+            && current.config?.impression === msg.impression
+            && typeof msg.status === 'string' && typeof msg.workflow === 'string') {
+            renderWorkflowStatus(msg);
+        }
+        if (msg.type === 'taskStatus' && current?.node.id === msg.nodeId) {
+            current.node.data.statusLoading = false;
+            current.node.data.local_status = msg.status;
+            current.node.data.statusError = msg.error;
+            current.node.data.historicalFallback = msg.status === 'new';
+            showCurrentTaskState();
+        }
         const file = editableFiles.find(file => msg.type === file.id + 'EditResult');
         if (file) {
             const draft = file.drafts.get(msg.nodeId);

@@ -58,6 +58,7 @@ export function getDetailHtml(webview: vscode.Webview, scriptUri: vscode.Uri, ya
                    font-weight: 600; color: #fff; }
     .statusDone { background: #21ba45; }
     .statusFailed { background: #db2828; }
+    .statusNew { background: #2185d0; }
     .statusPending { background: #fbbd08; }
     .runnerBadge { display: inline-block; margin-left: 0.5rem; padding: 2px 8px;
                    border-radius: 10px; background: var(--vscode-badge-background);
@@ -106,6 +107,9 @@ export function getDetailHtml(webview: vscode.Webview, scriptUri: vscode.Uri, ya
     #lightbox { position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 9999;
                 display: flex; align-items: center; justify-content: center; cursor: zoom-out; }
     #lightbox[hidden] { display: none; }
+    #jobStatusSection > h3 { font-size: 15px; margin: 0 0 12px; text-transform: uppercase; }
+    #jobStatusSection > .section { margin-left: 12px; }
+    #resultsFilter { margin-left: auto; min-width: 8rem; width: 15rem; max-width: 45%; padding: 4px 6px; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, transparent); }
     #lightbox img { max-width: 90vw; max-height: 90vh; object-fit: contain; }
 </style>
 </head>
@@ -118,10 +122,6 @@ export function getDetailHtml(webview: vscode.Webview, scriptUri: vscode.Uri, ya
     <select id="impressionSelect" hidden></select>
   </div>
 
-  <div class="section" id="impressionIdSection" hidden>
-    <h4>Impression ID</h4>
-    <code id="impressionId" class="impressionId"></code>
-  </div>
 
   <div class="section" id="readmeSection" hidden>
     <div class="readmeHeading">
@@ -141,15 +141,6 @@ export function getDetailHtml(webview: vscode.Webview, scriptUri: vscode.Uri, ya
     </div>
   </div>
 
-  <div class="section" id="statusSection" hidden>
-    <h4>Job Status</h4>
-    <div class="statusRow">
-      <span id="statusBadge" class="statusBadge"></span>
-      <span id="runnerBadge" class="runnerBadge" hidden></span>
-      <code id="workflowId" class="workflowId"></code>
-      <span id="statusDetails" class="statusDetails"></span>
-    </div>
-  </div>
 
   <div class="section" id="predecessorsSection" hidden>
     <h4 class="collapseHeader"><span class="collapseArrow" id="predecessorsArrow">▾</span> <span id="predecessorsTitle">Predecessors</span></h4>
@@ -179,21 +170,44 @@ export function getDetailHtml(webview: vscode.Webview, scriptUri: vscode.Uri, ya
     </div>
   </div>
 
+
+
   <div class="section" id="contentsSection" hidden>
     <h4>Contents</h4>
     <p id="contentsCount"></p>
+  </div>
+
+
+  <div class="section" id="jobStatusSection" hidden>
+    <h3>Job Status <button id="refreshStatus" class="readmeButton" title="Recheck the current task and its dependencies">Refresh</button> <span id="statusRefreshing" role="status" hidden>Refreshing…</span></h3>
+  <div class="section" id="impressionIdSection" hidden>
+    <h4>Impression ID</h4>
+    <code id="impressionId" class="impressionId"></code>
+    <div id="impressionNote" class="statusDetails"></div>
+  </div>
+
+  <div class="section" id="statusSection" hidden>
+    <h4>Run Status</h4>
+    <div class="statusRow">
+      <span id="statusBadge" class="statusBadge"></span>
+      <span id="runnerBadge" class="runnerBadge" hidden></span>
+      <code id="workflowId" class="workflowId"></code>
+      <span id="statusDetails" class="statusDetails"></span>
+    </div>
   </div>
 
   <div class="section" id="resultsSection" hidden>
     <div style="display:flex;align-items:baseline;gap:0.6rem">
       <h4>Results</h4>
       <button id="collectResults" class="readmeButton" disabled>Collect</button>
+      <input id="resultsFilter" type="text" aria-label="Filter results" placeholder="Filter: *.pdf" title="Match result names: * matches any text, ? matches one character. Empty shows all." spellcheck="false">
     </div>
     <div id="collectStatus" role="status" aria-live="polite"></div>
     <div id="resultsStatus"></div>
     <div id="resultGrid" class="resultGrid"></div>
   </div>
 
+  </div>
   <div class="section" id="fileInfoSection" hidden>
     <h4>File Info</h4>
     <div id="fileInfoRows"></div>

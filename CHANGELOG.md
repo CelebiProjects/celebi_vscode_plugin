@@ -4,6 +4,29 @@ All notable changes to the "celebi" extension will be documented in this file.
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [0.0.6] - 2026-11-19
+
+Companion extension update for CelebiChrono and Yuki `1.1.2b1`.
+The extension is independently versioned as `0.0.6`.
+
+### Added
+- Job Status groups Impression ID (or blue `new`), Run Status and Results.
+- Refresh button for cached current-task status and a wildcard Results filter (`*`, `?`).
+- Filename links below PNG and other image previews.
+
+### Changed
+- Show README, dependencies and YAML before the current-impression check finishes.
+- Display the last saved impression's results while refreshing, labeling historical results when the task is new.
+- Keep directory browsing independent of slow status checks and retain status caches across task selections.
+- Load result lists independently of run status, logs and preview forwarding; reuse cached lists during refresh.
+- Update run status, runner and workflow ID together, rejecting stale impression responses.
+
+### Fixed
+- Forward image, PDF and text preview URLs through the extension host for Remote SSH.
+- Prevent historical run status from being confused with the current task's impression state.
+
+- Registered remote raw-data files are listed directly through DITE without requiring collection, and raw-data tasks no longer show the Collect action.
+
 ## [0.0.5] - 2026-10-12
 
 ### Added

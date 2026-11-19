@@ -25,7 +25,7 @@ test('PDF results use previews and full-file links; images still load and enlarg
     send({ type: 'selectNode', node: { id: 'task', name: 'Task', kind: 'object', celebiType: 'task' }, config: {} });
     send({ type: 'impressionResults', state: 'ready', nodeId: 'task', items: [
         { name: 'fit "one".PDF', is_plot: true, is_pdf: true, url: 'https://server/fit.pdf', previewUrl: 'http://127.0.0.1/preview' },
-        { name: 'plot.png', is_plot: true, url: 'https://server/plot.png' },
+        { name: 'plot.png', is_plot: true, url: 'https://server/plot.png', previewUrl: 'https://forwarded.test/plot.png' },
     ] });
     const card = window.document.querySelector('.pdfPlot');
     assert.equal(card.dataset.previewUrl, 'http://127.0.0.1/preview');
@@ -34,9 +34,14 @@ test('PDF results use previews and full-file links; images still load and enlarg
     assert.equal(card.querySelector('img').hasAttribute('src'), false);
     assert.ok(rendered);
     const image = window.document.querySelector('.resultImage[src]');
-    assert.equal(image.src, 'https://server/plot.png');
+    assert.equal(image.src, 'https://forwarded.test/plot.png');
     image.click();
     assert.equal(window.document.getElementById('lightboxImg').src, image.src);
+    const imageStatus = image.parentElement.querySelector('.imageStatus');
+    assert.equal(imageStatus.hidden, true);
+    image.dispatchEvent(new window.Event('error'));
+    assert.equal(imageStatus.hidden, false);
+    assert.match(imageStatus.textContent, /Image preview failed/);
     const collect = window.document.getElementById('collectResults');
     assert.equal(collect.disabled, true);
     send({ type: 'selectNode', projectUuid: 'p', node: { id: 'task', name: 'Task', kind: 'object', celebiType: 'task' },
@@ -59,6 +64,10 @@ test('PDF results use previews and full-file links; images still load and enlarg
     select.dispatchEvent(new window.Event('change'));
     assert.equal(window.document.getElementById('collectStatus').textContent, 'Collect failed: offline');
     assert.equal(collect.disabled, false);
+    send({ type: 'selectNode', projectUuid: 'p', node: { id: 'raw', name: 'Raw data', kind: 'object', celebiType: 'task',
+        data: { environment: 'rawdata' } }, config: { impression: 'raw-impression', impressions: ['raw-impression'] } });
+    assert.equal(collect.hidden, true);
+    assert.equal(window.document.getElementById('collectStatus').textContent, '');
     dom.window.close();
     `], { input: html, cwd: path.join(__dirname, '../..') });
 });

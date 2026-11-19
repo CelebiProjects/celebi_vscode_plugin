@@ -1,0 +1,61 @@
+import { execFileSync } from 'child_process';
+import * as path from 'path';
+import { getDetailHtml } from '../webview/detailHtml';
+
+test('a new task clears the old job status and allows explicit historical selection', () => {
+    const uri = { toString: () => 'https://extension.test/detail.js' };
+    const html = getDetailHtml({ cspSource: 'https://extension.test' } as never, uri as never, uri as never, uri as never);
+    execFileSync(process.execPath, ['-e', `
+        const { JSDOM } = require('jsdom');
+        const fs = require('fs');
+        const assert = require('node:assert/strict');
+        const dom = new JSDOM(fs.readFileSync(0, 'utf8'), { runScripts: 'outside-only' });
+        const { window } = dom;
+        const messages = [];
+        window.acquireVsCodeApi = () => ({ postMessage: message => messages.push(message) });
+        window.renderCelebiYaml = () => '';
+        window.clearPdfPreviews = () => {};
+        window.renderPdfPreviews = () => Promise.resolve();
+        window.eval(fs.readFileSync('media/detail.js', 'utf8'));
+        const send = data => window.dispatchEvent(new window.MessageEvent('message', { data }));
+        const node = { id: 'task', name: 'Task', kind: 'object', celebiType: 'task' };
+        const ordered = ['readmeSection', 'predecessorsSection', 'successorsSection', 'yamlSection', 'impressionIdSection', 'statusSection', 'resultsSection'];
+        for (let i = 1; i < ordered.length; i++) {
+            assert.ok(window.document.getElementById(ordered[i - 1]).compareDocumentPosition(window.document.getElementById(ordered[i])) & window.Node.DOCUMENT_POSITION_FOLLOWING);
+        }
+        send({ type: 'selectNode', node: { ...node, data: { statusLoading: true, celebiYaml: 'alias: []' } }, readme: 'Read now', config: { predecessors: ['input'], successors: ['output'] } });
+        for (const id of ordered.slice(0, 4)) assert.equal(window.document.getElementById(id).hidden, false);
+        assert.equal(window.document.getElementById('impressionId').textContent, 'Checking…');
+        assert.equal(window.document.getElementById('resultsSection').hidden, true);
+        assert.equal(window.document.getElementById('impressionIdSection').hidden, false);
+        send({ type: 'selectNode', node, config: { impression: 'old' } });
+        send({ type: 'impressionResults', state: 'ready', nodeId: 'task', items: [], status: 'finished', workflow: 'cern old-workflow' });
+        send({ type: 'selectNode', node: { ...node, data: { local_status: 'new' } }, config: { impression: '', impressions: ['old'] } });
+        const get = id => window.document.getElementById(id);
+        assert.equal(get('jobStatusSection').hidden, false);
+        assert.equal(get('statusSection').hidden, true);
+        assert.equal(get('impressionId').textContent, 'new');
+        assert.equal(get('impressionId').classList.contains('statusNew'), true);
+        assert.equal(get('runnerBadge').hidden, true);
+        assert.equal(get('workflowId').textContent, '');
+        assert.equal(get('resultsSection').hidden, true);
+        assert.equal(get('impressionIdSection').hidden, false);
+        assert.equal(get('collectResults').disabled, true);
+        get('refreshStatus').click();
+        assert.equal(messages.at(-1).type, 'refreshStatus');
+        assert.equal(messages.at(-1).nodeId, 'task');
+        assert.equal(get('refreshStatus').disabled, true);
+        send({ type: 'statusRefreshDone', nodeId: 'task' });
+        assert.equal(get('refreshStatus').disabled, false);
+        assert.equal(get('refreshStatus').textContent, 'Refresh');
+        get('impressionSelect').value = 'old';
+        get('impressionSelect').dispatchEvent(new window.Event('change'));
+        assert.equal(messages.at(-1).impression, 'old');
+        send({ type: 'impressionResults', state: 'ready', nodeId: 'task', items: [], status: 'finished', workflow: 'cern old-workflow' });
+        assert.equal(get('statusBadge').textContent, 'finished');
+        assert.equal(get('impressionId').textContent, 'new');
+        assert.match(get('impressionNote').textContent, /saved impression old/);
+        for (const id of ['impressionIdSection', 'statusSection', 'resultsSection']) assert.equal(get(id).parentElement.id, 'jobStatusSection');
+        dom.window.close();
+    `], { input: html, cwd: path.join(__dirname, '../..') });
+});
